@@ -1,0 +1,28 @@
+{
+  "name": "subscalcrepo",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bbbonkk/SubsCalcRepo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bbbonkk/SubsCalcRepo/issues"
+  },
+  "homepage": "https://github.com/bbbonkk/SubsCalcRepo#readme",
+  "description": "",
+  "dependencies": {
+    "@azure/cosmos": "^4.4.1",
+    "@azure/identity": "^4.10.0",
+    "dotenv": "^16.5.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0"
+  }
+}
