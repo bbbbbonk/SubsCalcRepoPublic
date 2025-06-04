@@ -1,5 +1,5 @@
 {
-  "name": "subs-calc-form-app",
+  "name": "sub-calc-form-app",
   "version": "1.0.0",
   "main": "server.js",
   "type": "module",
