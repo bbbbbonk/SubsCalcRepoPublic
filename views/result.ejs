@@ -1,18 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Calculation Result</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <div class="resultDiv">
-    <h1>Calculation Result</h1>
-    <p><strong>Email:</strong> <%= email %></p>
-    <p><strong>Name:</strong> <%= name %></p>
-    <p><strong>Original Amount:</strong> <%= amount %></p>
-    <p><strong>Multiplied Amount:</strong> <%= multipliedAmount %></p>
-    <a href="/">Back</a>
-  </div>
+
+    <div class="resultDiv">
+        <h1>Calculation Result</h1>
+        <p>Unit Price: <%= price %></p>
+        <p>Quantity: <%= amount %></p>
+        <p>Discount (DB): <%= multi %>%</p>
+        <p>Total: <%= multipliedAmount %></p>    
+    </div>
+
+  <form action="/" method="GET">
+    <button type="submit">Back to Home</button>
+  </form>
 </body>
 </html>

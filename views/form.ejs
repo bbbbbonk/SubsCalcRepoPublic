@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Application Form</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Application Form</h1>
+    <form action="/submit-form" method="POST">
+      <label for="name">Name:</label>
+      <input type="text" name="name" required />
+
+      <label for="email">Email:</label>
+      <input type="email" name="email" required />
+
+      <button type="submit">Submit</button>
+    </form>
+    <form action="/" method="GET">
+        <button type="submit">Return</button>
+    </form>
+  </div>
+</body>
+</html>
