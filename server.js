@@ -38,11 +38,11 @@ if (useManagedIdentity) {
   cosmosClient = new CosmosClient(conn);
 }
 
-const database = cosmosClient.database("CalculatorConfigDB");
-const customerDatabase = cosmosClient.database("CustomerInfo");
+const calcDatabase = cosmosClient.database("CalculatorConfigDB");
+const calcContainer = calcDatabase.container("Variables");
 
-const container = database.container("Variables");
-const customerContainer = database.container("CustomerInfo");
+const customerDatabase = cosmosClient.database("CustomerInfo");
+const customerContainer = customerDatabase.container("CustomerInfo");
   // Routes
 
 // GET /
@@ -62,27 +62,66 @@ app.get("/calculator", (req, res) => {
 
 // POST /submit-form
 app.post("/submit-form", async (req, res) => {
-  const { name, email } = req.body;
+  const {
+    ordererName,
+    ordererEmail,
+    partnerCompany,
+    partnerSignatory,
+    partnerContactName,
+    partnerContactPhone,
+    partnerContactEmail,
+    customerCompany,
+    customerAddress,
+    customerBusinessNumber,
+    customerContactName,
+    customerContactEmail,
+    customerContactPhone,
+    numUsers,
+    customerPrice,
+    startDate,
+    initialTerm,
+    tenantURL
+  } = req.body;
 
-  const item ={
-    id:`${Date.now()}`,
-    partitionkey:"Customer",
-    name,
-    email,
+  const item = {
+    id: `${Date.now()}`, // Use timestamp for unique id
+    ordererName,
+    ordererEmail,
+    partnerCompany,
+    partnerSignatory,
+    partnerContactName,
+    partnerContactPhone,
+    partnerContactEmail,
+    customerCompany,
+    customerAddress,
+    customerBusinessNumber,
+    customerContactName,
+    customerContactEmail,
+    customerContactPhone,
+    numUsers: Number(numUsers || 0),
+    customerPrice: parseFloat(customerPrice || 0),
+    startDate,
+    initialTerm,
+    tenantURL,
     submittedAt: new Date().toISOString()
   };
 
   try {
     const { resource } = await customerContainer.items.create(item, {
-      partitionKey: item.partitionkey
+      partitionKey: customerCompany
     });
-    console.log("Inserted item:", resource);
-    res.send(`Thank you, ${name}. Your application has been received.`);
+    console.log("Inserted item into Cosmos DB:", resource);
+
+    // Render thankyou.ejs after successful submission
+    res.render("thankyou", {
+      ordererName,
+      customerCompany
+
+    });
   } catch (err) {
     console.error("Error saving to Cosmos DB:", err.message);
     res.status(500).send("Failed to save your application.");
   }
-
 });
 
 
@@ -94,11 +133,10 @@ app.post("/calculate", async (req, res) => {
   let multi = 0;
   try {
     // id = "VAR", partitionKey = "Sale2" (change as needed)
-    const { resource: doc } = await container.item("VAR", "Sale").read();
-    // Assuming your multiplier is stored in the field 'value' or 'SaleM'
-    multi = doc?.DiscountPerc ?? 0;
+    const { resource: doc } = await calcContainer.item("Discount", "Commitment").read();
+    multi = doc?.Amount ?? 0;
   } catch (err) {
-    console.warn("Failed to fetch multiplier from Cosmos DB:", err.message);
+    console.warn("Failed to fetch discount from Cosmos DB:", err.message);
   }
 
   // Calculate the multiplied amount

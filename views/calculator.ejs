@@ -7,6 +7,7 @@
 </head>
 <body>
   <div class="calcDiv">
+    <h1>Subscription Calculator</h1>
     <form action="/calculate" method="POST">
 
       <label for="price">Price:</label>
@@ -15,9 +16,11 @@
       <label for="amount">Amount</label>
       <input type="number" name="amount" required />
 
-      <button type="submit">Submit</button>
-
-
+      <div class="button-group">  
+        <a href="/" class="secondary-button">Return</a>
+        <button type="submit">Submit</button>
+      
+      </div>
     </form>
   </div>
 </body>

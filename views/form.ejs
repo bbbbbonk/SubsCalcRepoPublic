@@ -9,16 +9,46 @@
   <div class="container">
     <h1>Application Form</h1>
     <form action="/submit-form" method="POST">
-      <label for="name">Name:</label>
-      <input type="text" name="name" required />
 
-      <label for="email">Email:</label>
-      <input type="email" name="email" required />
+      <fieldset>
+        <legend>Orderer Information</legend>
+        <input type="text" name="ordererName" placeholder="Name of the person making the order" required />
+        <input type="email" name="ordererEmail" placeholder="Email of the person making the order" required />
+      </fieldset>
 
-      <button type="submit">Submit</button>
-    </form>
-    <form action="/" method="GET">
-        <button type="submit">Return</button>
+      <fieldset>
+        <legend>Partner Information</legend>
+        <input type="text" name="partnerCompany" placeholder="Partner company name" required />
+        <input type="text" name="partnerSignatory" placeholder="Partner signatory name, position and email" required />
+        <input type="text" name="partnerContactName" placeholder="Partner contact name" required />
+        <input type="tel" name="partnerContactPhone" placeholder="Partner contact phone number" required />
+        <input type="email" name="partnerContactEmail" placeholder="Partner contact email" required />
+      </fieldset>
+
+      <fieldset>
+        <legend>Customer Information</legend>
+        <input type="text" name="customerCompany" placeholder="Customer company name" required />
+        <input type="text" name="customerAddress" placeholder="Registered address" required />
+        <input type="text" name="customerBusinessNumber" placeholder="Business number" required />
+        <input type="text" name="customerContactName" placeholder="Customer contact name" required />
+        <input type="email" name="customerContactEmail" placeholder="Customer contact email" required />
+        <input type="tel" name="customerContactPhone" placeholder="Customer contact phone number" required />
+      </fieldset>
+
+      <fieldset>
+        <legend>Fresh Subscription</legend>
+        <input type="number" name="numUsers" min="1" placeholder="Number of users" />
+        <input type="number" step="0.01" name="customerPrice" placeholder="Customer price (GBP)" required />
+        <input type="date" name="startDate" placeholder="Start date" required />
+        <input type="text" name="initialTerm" placeholder="Initial term (months)" required />
+        <input type="url" name="tenantURL" placeholder="Client tenant URL" required />
+      </fieldset>
+
+      <div class="button-group">
+        <a href="/" class="secondary-button">Return</a>
+        <button type="submit">Submit</button>
+        
+      </div>
     </form>
   </div>
 </body>
