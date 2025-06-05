@@ -2,12 +2,13 @@ body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #f0f2f5;
   margin: 0;
-  padding: 0;
+  padding:40px 0;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
   color: #333;
+  flex-direction: column;
 }
 
 .container {
@@ -17,6 +18,15 @@ body {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 900px;
+  box-sizing: border-box;
+}
+.indexContainer {
+  background-color: #fff;
+  padding: 25px 30px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
   box-sizing: border-box;
 }
 
@@ -73,9 +83,9 @@ button,
 .secondary-button {
   background-color: #6a4fb7;
   color: white;
-  padding: 12px 24px;
+  padding: 16px 24px;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 1.2rem;
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -132,4 +142,7 @@ button:hover,
 .resultDiv a:hover {
   background-color: #553d94;
   color: #fff;
+}
+.titleDiv{
+
 }
