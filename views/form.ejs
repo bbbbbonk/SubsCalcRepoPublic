@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Application Form</title>
+  <title>Order Form</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="container">
-    <h1>Application Form</h1>
+    <h1>Order Form</h1>
     <form action="/submit-form" method="POST">
 
       <fieldset>
@@ -38,7 +38,15 @@
       <fieldset>
         <legend>Fresh Subscription</legend>
         <input type="number" name="numUsers" min="1" placeholder="Number of users" />
-        <input type="number" step="0.01" name="customerPrice" placeholder="Customer price (GBP)" required />
+
+          <select class="currencyDropdown" name="currency" required>
+            <option value="" disabled selected>Select currency</option>
+            <option value="GBP">GBP</option>
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+          </select>
+
+        <input type="number" step="0.01" name="customerPrice" placeholder="Customer price" required />
         <input type="date" name="startDate" placeholder="Start date" required />
         <input type="text" name="initialTerm" placeholder="Initial term (months)" required />
         <input type="url" name="tenantURL" placeholder="Client tenant URL" required />

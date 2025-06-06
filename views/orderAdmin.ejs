@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Customer Records</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="titleDiv">
+    <h1>All Customer Records</h1>
+  </div>
+
+  <div class="OrderContainer">
+    <% if (message) { %>
+      <p><%= message %></p>
+    <% } else if (customers.length === 0) { %>
+      <p>No customers found.</p>
+    <% } else { %>
+      <table>
+        <thead>
+          <tr>
+            <% Object.keys(customers[0]).forEach(key => { %>
+              <th><%= key %></th>
+            <% }); %>
+          </tr>
+        </thead>
+        <tbody>
+          <% customers.forEach(customer => { %>
+            <tr>
+              <% Object.values(customer).forEach(value => { %>
+                <td><%= value %></td>
+              <% }); %> 
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+  <div class="orderEmail">
+  <h3>System Email for Order Submissions</h3>
+
+  <% if (emailMessage) { %>
+    <p><%= emailMessage %></p>
+  <% } %>
+
+  <form action="/updateEmail" method="POST">
+    <label for="email">Current Email:</label>
+    <input type="email" id="email" name="email" value="<%= currentEmail %>" required />
+    <button type="submit">Update Email</button>
+  </form>
+</div>
+  </form>
+      <form action="/" method="GET">
+      <button type="submit">Return</button>
+    </form>
+</body>
+</html>

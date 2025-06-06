@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { config as dotenvConfig } from "dotenv";
 import { CosmosClient } from "@azure/cosmos";
 import { DefaultAzureCredential } from "@azure/identity";
+import nodemailer from "nodemailer";
 
 // Enable .env support (for local development)
 dotenvConfig();
@@ -60,6 +61,86 @@ app.get("/calculator", (req, res) => {
   res.render("calculator");
 });
 
+/// GET /orderAdmin
+app.get("/orderAdmin", async (req, res) => {
+  try {
+    const searchTerm = req.query.search || "";
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    let querySpec;
+    if (searchTerm) {
+      querySpec = {
+        query: "SELECT * FROM c WHERE CONTAINS(c.customerCompany, @term) OR CONTAINS(c.ordererName, @term)",
+        parameters: [{ name: "@term", value: searchTerm }]
+      };
+    } else {
+      querySpec = { query: "SELECT * FROM c" };
+    }
+
+    const { resources: allCustomers } = await customerContainer.items.query(querySpec).fetchAll();
+
+    // Filter out the sysemail document and system fields
+    const filteredCustomers = allCustomers
+      .filter(c => c.id !== "sysemail")
+      .map(({ _rid, _self, _etag, _attachments, _ts, ...rest }) => rest);
+
+    // Fetch sysemail document for current email
+    const { resources: emailDoc } = await customerContainer.items
+      .query({
+        query: "SELECT * FROM c WHERE c.id = @id",
+        parameters: [{ name: "@id", value: "sysemail" }]
+      })
+      .fetchAll();
+
+    const currentEmail = emailDoc[0]?.email || "";
+
+    // Paginate results
+    const paginatedCustomers = filteredCustomers.slice(offset, offset + limit);
+    const totalPages = Math.ceil(filteredCustomers.length / limit);
+
+    res.render("orderAdmin", {
+      customers: paginatedCustomers,
+      message: null,
+      currentPage: page,
+      totalPages: totalPages,
+      searchTerm,
+      currentEmail,
+      emailMessage: req.query.emailMessage || null  // Pass emailMessage from query string
+    });
+  } catch (err) {
+    console.error("Error fetching customer data:", err.message);
+    res.status(500).render("orderAdmin", {
+      customers: [],
+      message: "Error loading customer data",
+      currentPage: 1,
+      totalPages: 1,
+      searchTerm: "",
+      currentEmail: "",
+      emailMessage: "Error fetching system email"
+    });
+  }
+});
+
+// POST /updateEmail (from orderAdmin page)
+app.post("/updateEmail", async (req, res) => {
+  const newEmail = req.body.email;
+  if (!newEmail) {
+    return res.redirect("/orderAdmin?emailMessage=" + encodeURIComponent("Email cannot be empty"));
+  }
+
+  try {
+    const item = { id: "sysemail", email: newEmail };
+    await customerContainer.items.upsert(item);
+    res.redirect("/orderAdmin?emailMessage=" + encodeURIComponent("System email updated successfully"));
+  } catch (err) {
+    console.error("Failed to update sysemail:", err.message);
+    res.redirect("/orderAdmin?emailMessage=" + encodeURIComponent("Failed to update system email"));
+  }
+});
+
+//GET /admin
 app.get("/admin", async (req, res) => {
   try {
     console.log("Attempting to fetch variables from Cosmos DB...");
@@ -211,11 +292,21 @@ app.post("/submit-form", async (req, res) => {
     customerPrice,
     startDate,
     initialTerm,
-    tenantURL
+    tenantURL,
+    currency
   } = req.body;
 
+  const { resources: emailDoc } = await customerContainer.items
+    .query({
+      query: "SELECT * FROM c WHERE c.id = @id",
+      parameters: [{ name: "@id", value: "sysemail" }]
+    })
+    .fetchAll();
+
+  const sysemail = emailDoc[0]?.email || "";
+
   const item = {
-    id: `${Date.now()}`, // Use timestamp for unique id
+    id: `${Date.now()}`,
     ordererName,
     ordererEmail,
     partnerCompany,
@@ -231,9 +322,11 @@ app.post("/submit-form", async (req, res) => {
     customerContactPhone,
     numUsers: Number(numUsers || 0),
     customerPrice: parseFloat(customerPrice || 0),
+    currency,
     startDate,
     initialTerm,
     tenantURL,
+    sysemail,
     submittedAt: new Date().toISOString()
   };
 
@@ -243,18 +336,54 @@ app.post("/submit-form", async (req, res) => {
     });
     console.log("Inserted item into Cosmos DB:", resource);
 
-    // Render thankyou.ejs after successful submission
+    // ✅ Email sending logic
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // or 'Outlook365', 'SendGrid' etc.
+      auth: {
+        user: process.env.EMAIL_USER, // e.g., your Gmail address
+        pass: process.env.EMAIL_PASS  // use app password or env var
+      }
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: [sysemail, ordererEmail],
+      subject: `New Order Submission: ${customerCompany}`,
+      html: `
+        <h2>New Order Submitted</h2>
+        <p><strong>Orderer:</strong> ${ordererName}</p>
+        <p><strong>Orderer email:</strong> ${ordererEmail}</p>
+        <p><strong>Partner Company:</strong> ${partnerCompany}</p>
+        <p><strong>Customer Company:</strong> ${customerCompany}</p>
+        <p><strong>Customer Address:</strong> ${customerAddress}</p>
+        <p><strong>Business Number:</strong> ${customerBusinessNumber}</p>
+        <p><strong>Contact Name:</strong> ${customerContactName}</p>
+        <p><strong>Contact Email:</strong> ${customerContactEmail}</p>
+        <p><strong>Number of users:</strong> ${numUsers}</p>
+        <p><strong>Customer price:</strong> ${customerPrice}</p>
+        <p><strong>Currency:</strong> ${currency}</p>
+        <p><strong>Start Date:</strong> ${startDate}</p>
+        <p><strong>Initial Term:</strong> ${initialTerm} months</p>
+        <p><strong>Tenant URL:</strong> ${tenantURL}</p>
+        <hr />
+        <p>This is an automated message.</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully");
+
+    // Render thank you page
     res.render("thankyou", {
       ordererName,
       customerCompany
-
     });
+
   } catch (err) {
-    console.error("Error saving to Cosmos DB:", err.message);
-    res.status(500).send("Failed to save your application.");
+    console.error("Error saving to DB or sending email:", err.message);
+    res.status(500).send("Failed to process your request.");
   }
 });
-
 
 
 // POST /calculate
