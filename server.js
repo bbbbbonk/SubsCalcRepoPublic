@@ -125,22 +125,6 @@ app.get("/orderAdmin", async (req, res) => {
   }
 });
 
-// POST /deleteCustomer
-app.post("/deleteCustomer", async (req, res) => {
-  const { id, customerCompany } = req.body;
-
-  if (!id || !customerCompany) {
-    return res.redirect("/orderAdmin?message=" + encodeURIComponent("Missing ID or customerCompany"));
-  }
-
-  try {
-    await customerContainer.item(id, customerCompany).delete();
-    res.redirect("/orderAdmin?message=" + encodeURIComponent("Customer record deleted successfully"));
-  } catch (err) {
-    console.error("Error deleting customer record:", err.message);
-    res.redirect("/orderAdmin?message=" + encodeURIComponent("Failed to delete customer record"));
-  }
-});
 
 // POST /updateEmail (from orderAdmin page)
 app.post("/updateEmail", async (req, res) => {
