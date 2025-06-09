@@ -106,9 +106,11 @@ app.get("/orderAdmin", async (req, res) => {
       currentPage: page,
       totalPages: totalPages,
       searchTerm,
+      limit,
       currentEmail,
       emailMessage: req.query.emailMessage || null  // Pass emailMessage from query string
     });
+
   } catch (err) {
     console.error("Error fetching customer data:", err.message);
     res.status(500).render("orderAdmin", {
@@ -120,6 +122,23 @@ app.get("/orderAdmin", async (req, res) => {
       currentEmail: "",
       emailMessage: "Error fetching system email"
     });
+  }
+});
+
+// POST /deleteCustomer
+app.post("/deleteCustomer", async (req, res) => {
+  const { id, customerCompany } = req.body;
+
+  if (!id || !customerCompany) {
+    return res.redirect("/orderAdmin?message=" + encodeURIComponent("Missing ID or customerCompany"));
+  }
+
+  try {
+    await customerContainer.item(id, customerCompany).delete();
+    res.redirect("/orderAdmin?message=" + encodeURIComponent("Customer record deleted successfully"));
+  } catch (err) {
+    console.error("Error deleting customer record:", err.message);
+    res.redirect("/orderAdmin?message=" + encodeURIComponent("Failed to delete customer record"));
   }
 });
 
@@ -336,12 +355,12 @@ app.post("/submit-form", async (req, res) => {
     });
     console.log("Inserted item into Cosmos DB:", resource);
 
-    // ✅ Email sending logic
+    // Email sending logic
     const transporter = nodemailer.createTransport({
       service: 'gmail', // or 'Outlook365', 'SendGrid' etc.
       auth: {
-        user: process.env.EMAIL_USER, // e.g., your Gmail address
-        pass: process.env.EMAIL_PASS  // use app password or env var
+        user: process.env.EMAIL_USER,           
+        pass: process.env.EMAIL_PASS       
       }
     });
 
