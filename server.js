@@ -379,7 +379,8 @@ app.post("/submit-form", async (req, res) => {
     // Render thank you page
     res.render("thankyou", {
       ordererName,
-      customerCompany
+      customerCompany,
+      ordererEmail
     });
 
   } catch (err) {
@@ -388,6 +389,24 @@ app.post("/submit-form", async (req, res) => {
   }
 });
 
+// POST /deleteCustomer
+app.post("/deleteCustomer", async (req, res) => {
+  const { id, customerCompany } = req.body;
+
+  if (!id || !customerCompany) {
+    return res.status(400).send("Missing id or customerCompany");
+  }
+
+  try {
+
+    console.log("Deleting customer with id:", id, "and partitionKey:", customerCompany);
+    await customerContainer.item(id, customerCompany).delete();
+    res.redirect("/orderAdmin");
+  } catch (err) {
+    console.error("Error deleting customer:", err.message);
+    res.status(500).send("Failed to delete customer");
+  }
+});
 
 // POST /calculate
 app.post("/calculate", async (req, res) => {

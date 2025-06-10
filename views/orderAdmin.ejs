@@ -43,22 +43,30 @@
   </select>
 </form>
       <table>
-        <thead>
-          <tr>
-            <% Object.keys(customers[0]).forEach(key => { %>
-              <th><%= key %></th>
-            <% }); %>
-          </tr>
-        </thead>
-        <tbody>
-          <% customers.forEach(customer => { %>
-            <tr>
-              <% Object.values(customer).forEach(value => { %>
-                <td><%= value %></td>
-              <% }); %> 
-            </tr>
+    <thead>
+      <tr>
+        <% Object.keys(customers[0]).forEach(key => { %>
+          <th><%= key %></th>
+        <% }); %>
+        <th>Action</th> <!-- Add this line -->
+      </tr>
+    </thead>
+      <tbody>
+      <% customers.forEach(customer => { %>
+        <tr>
+          <% Object.values(customer).forEach(value => { %>
+            <td><%= value %></td>
           <% }); %>
-        </tbody>
+          <td>
+            <form action="/deleteCustomer" method="POST" onsubmit="return confirm('Are you sure you want to delete this customer?');">
+              <input type="hidden" name="id" value="<%= customer.id %>">
+              <input type="hidden" name="customerCompany" value="<%= customer.customerCompany %>">
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
       </table>
     <% } %>
   </div>
