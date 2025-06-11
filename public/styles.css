@@ -222,3 +222,88 @@ th {
 .adminButton:hover {
   background-color: #a02666;
 }
+
+
+/* Tablet styles (≤900px) */
+@media screen and (max-width: 900px) {
+  body {
+    padding: 20px 10px;
+  }
+
+  .container,
+  .indexContainer,
+  .OrderContainer,
+  .resultDiv {
+    padding: 20px;
+    margin: 10px;
+  }
+
+  .button-group {
+    gap: 50px;
+  }
+
+  button,
+  .secondary-button {
+    width: 100%;
+    font-size: 1rem;
+    padding: 14px 20px;
+  }
+
+  .adminViews {
+    bottom: 10px;
+    right: 10px;
+  }
+
+  table {
+    font-size: 0.95rem;
+  }
+}
+
+/* Mobile styles (≤600px) */
+@media screen and (max-width: 600px) {
+  body {
+    padding: 10px 5px;
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .container,
+  .indexContainer,
+  .OrderContainer,
+  .resultDiv {
+    padding: 15px;
+    border-radius: 8px;
+    max-width: 100%;
+  }
+
+  input {
+    font-size: 0.9rem;
+  }
+
+  button,
+  .secondary-button {
+    font-size: 1rem;
+    padding: 18px 16px;
+  }
+
+  .pagination a,
+  .pagination strong {
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
+
+  .adminButton {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+  }
+
+  .calcDiv{
+    width: 90%;
+  }
+  .resultDiv a {
+    width: 50%;
+    text-align: center;
+  }
+}
