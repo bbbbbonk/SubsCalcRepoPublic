@@ -6,6 +6,9 @@ import { config as dotenvConfig } from "dotenv";
 import { CosmosClient } from "@azure/cosmos";
 import { DefaultAzureCredential } from "@azure/identity";
 import nodemailer from "nodemailer";
+import session from 'express-session';
+import bcrypt from "bcrypt";
+import crypto from "crypto";
 
 // Enable .env support (for local development)
 dotenvConfig();
@@ -14,10 +17,122 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
+app.use(express.json()); // For parsing application/json
+app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
+
+//salasanan setuppeja
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'defaultsecret',
+    resave: false,
+    saveUninitialized: true,
+    cookie: {                //orderAdminin maksimi session pituus
+      maxAge: 5 * 60 * 1000, //huom. lasketaan millisekunneissa, eli näyttää tyhmältä sen takia.
+   },})
+);
+
+//haetaan tarvittu salasana orderAdminiin
+app.get('/initAdmin', async (req, res) => {
+  try {
+    const defaultPassword = await bcrypt.hash(process.env.DEFAULT_ADMIN_PASSWORD, 10);
+    
+    const adminConfig = {
+      id: "adminCredentials",
+      adminEmails: [process.env.DEFAULT_ADMIN_EMAIL], // Array of authorized emails
+      adminPassword: defaultPassword
+    };
+
+    await adminConfigContainer.items.upsert(adminConfig);
+    res.send("Admin configuration initialized successfully");
+  } catch (err) {
+    console.error("Error initializing admin:", err);
+    res.status(500).send("Error initializing admin configuration");
+  }
+});
+
+
+//uusi salasana teknologia
+app.post('/verifyResetCode', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+
+  // Validate the reset code
+  if (
+    req.session.resetCode !== code ||
+    req.session.resetEmail !== email ||
+    Date.now() > req.session.codeExpires
+  ) {
+    return res.render('resetPassword', { email, error: "Invalid or expired code." });
+  }
+
+  try {
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    // Get the current config
+    const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+    
+    // Update the password
+    config.adminPassword = hashedPassword;
+    
+    // Save back to Cosmos DB
+    await adminConfigContainer.items.upsert(config);
+
+    // Clean up session
+    delete req.session.resetCode;
+    delete req.session.resetEmail;
+    delete req.session.codeExpires;
+
+    res.redirect('/login');
+  } catch (err) {
+    console.error("Password reset failed:", err);
+    res.render('resetPassword', { email, error: "Could not update password." });
+  }
+});
+
+
+//salasanan vaihtamiseen
+app.post('/requestResetCode', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+
+    if (!config.adminEmails.includes(email)) {
+      return res.render('login', { error: "Email not authorized." });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Store code in session
+    req.session.resetCode = code;
+    req.session.resetEmail = email;
+    req.session.codeExpires = Date.now() + 10 * 60 * 1000; // 10 min expiry
+
+    // Send email
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your Admin Reset Code",
+      text: `Your code is: ${code}`
+    });
+
+    res.render('resetPassword', { email, error: null });
+  } catch (err) {
+    console.error("Reset code error:", err);
+    res.render('login', { error: "Failed to send reset code." });
+  }
+});
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
-app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
 // Get environment variables
@@ -44,7 +159,9 @@ const calcContainer = calcDatabase.container("Variables");
 
 const customerDatabase = cosmosClient.database("CustomerInfo");
 const customerContainer = customerDatabase.container("CustomerInfo");
-  // Routes
+
+const adminConfigContainer=customerDatabase.container("adminConfig");
+// Routes
 
 // GET /
 app.get("/", (req, res) => {
@@ -61,8 +178,47 @@ app.get("/calculator", (req, res) => {
   res.render("calculator");
 });
 
+//authentikointia loginille
+function requireAuth(req, res, next) {
+  if (req.session && req.session.authenticated) {
+    return next();
+  }
+  res.redirect('/login');
+}
+
+// GET /login /orderAdminille
+app.get('/login', (req, res) => {
+  res.render('login', { error: null });
+});
+
+// POST /login
+app.post('/login', async (req, res) => {
+  const { password } = req.body;
+  
+  try {
+    // Read from adminConfig container
+    const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+    
+    if (!config) {
+      return res.render('login', { error: 'Admin configuration not found' });
+    }
+
+    const match = await bcrypt.compare(password, config.adminPassword);
+
+    if (match) {
+      req.session.authenticated = true;
+      res.redirect('/orderAdmin');
+    } else {
+      res.render('login', { error: 'Invalid password' });
+    }
+  } catch (err) {
+    console.error("Login error:", err);
+    res.render('login', { error: 'Login failed' });
+  }
+});
+
 /// GET /orderAdmin
-app.get("/orderAdmin", async (req, res) => {
+app.get("/orderAdmin", requireAuth, async (req, res) => {
   try {
     const searchTerm = req.query.search || "";
     const page = parseInt(req.query.page) || 1;
@@ -438,4 +594,9 @@ app.post("/calculate", async (req, res) => {
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Calculator app listening on port ${port}`);
+});
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
 });

@@ -48,7 +48,7 @@
         <% Object.keys(customers[0]).forEach(key => { %>
           <th><%= key %></th>
         <% }); %>
-        <th>Action</th> <!-- Add this line -->
+        <th>Action</th>
       </tr>
     </thead>
       <tbody>
@@ -70,22 +70,45 @@
       </table>
     <% } %>
   </div>
-  <div class="orderEmail">
-  <h3>System Email for Order Submissions</h3>
+  <div class="container">
+    <div class="orderEmail">
+    <h3>System Email for Order Submissions</h3>
 
-  <% if (emailMessage) { %>
-    <p><%= emailMessage %></p>
-  <% } %>
+    <% if (emailMessage) { %>
+      <p><%= emailMessage %></p>
+    <% } %>
 
-  <form action="/updateEmail" method="POST">
-    <label for="email">Current Email:</label>
-    <input type="email" id="email" name="email" value="<%= currentEmail %>" required />
-    <button type="submit">Update Email</button>
-  </form>
-</div>
-  </form>
-      <form action="/" method="GET">
-      <button type="submit">Return</button>
+    <form action="/updateEmail" method="POST">
+      <label for="email">Current Email:</label>
+      <input type="email" id="email" name="email" value="<%= currentEmail %>" required />
+      <button type="submit">Update Email</button>
     </form>
+  </div>
+    </form>
+        <form id="returnForm" action="/" method="GET">
+        <button id="returnForm" type="submit">Return</button>
+      </form>
+          <h3>Reset Admin Password</h3>
+      <form action="/requestResetCode" method="POST">
+        <input type="email" name="email" required placeholder="Enter your admin email" />
+        <button type="submit">Send Reset Code</button>
+      </form>
+    </div>
+    <script>
+    // Set the timeout duration in milliseconds (must match server-side maxAge)
+    const sessionTimeout = 5 * 60 * 1000;  //huom. lasketaan millisekunneissa, eli näyttää tyhmältä sen takia.
+
+    setTimeout(() => {
+      alert("Your session has expired. You can no longer make changes.");
+
+      // Disable all form inputs
+      const allElements = document.querySelectorAll('input, textarea, button, select');
+      allElements.forEach(el => {
+        if (el.id !== 'returnForm') {
+          el.disabled = true;
+        }
+      });
+    }, sessionTimeout);
+  </script>
 </body>
 </html>
