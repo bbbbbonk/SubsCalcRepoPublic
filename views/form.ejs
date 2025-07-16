@@ -58,6 +58,30 @@
         
       </div>
     </form>
+    
   </div>
+  <script>
+
+  let secondsRemaining = 900;
+
+  function updateTimer() {
+    const minutes = Math.floor(secondsRemaining / 60);
+    const seconds = secondsRemaining % 60;
+    document.getElementById("session-timer").textContent =
+      `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (secondsRemaining > 0) {
+      secondsRemaining--;
+    } else {
+      alert("Session expired. Redirecting to login.");
+      window.location.href = "/login";
+    }
+  }
+
+  setInterval(updateTimer, 1000);
+</script>
+<div style="color: red; font-weight: bold;">
+  Session expires in: <span id="session-timer"></span>
+</div>
 </body>
+
 </html>

@@ -7,7 +7,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>Enter Password to Access Order Admin</h2>
+        <h2>Enter Password to Access The Order Form</h2>
         <% if (error) { %>
             <p style="color:red;"><%= error %></p>
         <% } %>
@@ -19,11 +19,6 @@
             <button type="submit">Back to Home</button>
         </form>
 
-            <h3>Reset Admin Password</h3>
-<form action="/requestResetCode" method="POST">
-  <input type="email" name="email" required placeholder="Enter your admin email" />
-  <button type="submit">Send Reset Code</button>
-</form>
 
     </div>
 </body>

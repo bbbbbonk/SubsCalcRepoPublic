@@ -27,7 +27,7 @@ app.use(
     resave: false,
     saveUninitialized: true,
     cookie: {                //orderAdminin maksimi session pituus
-      maxAge: 5 * 60 * 1000, //huom. lasketaan millisekunneissa, eli näyttää tyhmältä sen takia.
+      maxAge: 15 * 60 * 1000, //huom. lasketaan millisekunneissa, eli näyttää tyhmältä sen takia.
    },})
 );
 
@@ -50,6 +50,71 @@ app.get('/initAdmin', async (req, res) => {
   }
 });
 
+// GET /verify-email – page where admin inputs email
+app.get('/verify-email', (req, res) => {
+  res.render('verifyEmail', { error: null });
+});
+
+app.post('/send-otp', async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+
+    if (!config.adminEmails.includes(email)) {
+      return res.render('verifyEmail', { error: "Email not authorized." });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    req.session.otp = otp;
+    req.session.otpEmail = email;
+    req.session.otpExpires = Date.now() + 15 * 60 * 1000; //aika
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your One-Time Passcode (OTP)",
+      text: `Your OTP is: ${otp}`
+    });
+
+    res.render('enterOtp', { email, error: null });
+  } catch (err) {
+    console.error("Error sending OTP:", err.message);
+    res.render('verifyEmail', { error: "Error sending OTP. Please try again." });
+  }
+});
+
+//otp:n varmistus
+app.post('/verify-otp', (req, res) => {
+  const { otp, email } = req.body;
+
+  if (
+    req.session.otp !== otp ||
+    req.session.otpEmail !== email ||
+    Date.now() > req.session.otpExpires
+  ) {
+    return res.render('enterOtp', { email, error: "Invalid or expired OTP." });
+  }
+
+  // Success
+  req.session.orderAdminVerified = true;
+
+  // Clean up OTP
+  delete req.session.otp;
+  delete req.session.otpEmail;
+  delete req.session.otpExpires;
+
+  res.redirect('/orderAdmin');
+});
 
 //uusi salasana teknologia
 app.post('/verifyResetCode', async (req, res) => {
@@ -106,7 +171,7 @@ app.post('/requestResetCode', async (req, res) => {
     // Store code in session
     req.session.resetCode = code;
     req.session.resetEmail = email;
-    req.session.codeExpires = Date.now() + 10 * 60 * 1000; // 10 min expiry
+    req.session.codeExpires = Date.now() + 15 * 60 * 1000; // 10 min expiry
 
     // Send email
     const transporter = nodemailer.createTransport({
@@ -169,7 +234,7 @@ app.get("/", (req, res) => {
 });
 
 // GET /form
-app.get("/form", (req, res) => {
+app.get("/form", requireAuth, (req, res) => {
   res.render("form");
 });
 
@@ -186,7 +251,7 @@ function requireAuth(req, res, next) {
   res.redirect('/login');
 }
 
-// GET /login /orderAdminille
+// GET /login /formille
 app.get('/login', (req, res) => {
   res.render('login', { error: null });
 });
@@ -196,7 +261,7 @@ app.post('/login', async (req, res) => {
   const { password } = req.body;
   
   try {
-    // Read from adminConfig container
+    // Read from adminConfig container password for logging into order form
     const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
     
     if (!config) {
@@ -207,7 +272,7 @@ app.post('/login', async (req, res) => {
 
     if (match) {
       req.session.authenticated = true;
-      res.redirect('/orderAdmin');
+      res.redirect('/form');
     } else {
       res.render('login', { error: 'Invalid password' });
     }
@@ -217,8 +282,15 @@ app.post('/login', async (req, res) => {
   }
 });
 
+function requireOrderAdminOTP(req, res, next) {
+  if (req.session && req.session.orderAdminVerified) {
+    return next();
+  }
+  res.redirect('/verify-email');
+}
+
 /// GET /orderAdmin
-app.get("/orderAdmin", requireAuth, async (req, res) => {
+app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
   try {
     const searchTerm = req.query.search || "";
     const page = parseInt(req.query.page) || 1;
@@ -281,6 +353,12 @@ app.get("/orderAdmin", requireAuth, async (req, res) => {
   }
 });
 
+//log out
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/login');
+  });
+});
 
 // POST /updateEmail (from orderAdmin page)
 app.post("/updateEmail", async (req, res) => {
