@@ -22,6 +22,9 @@ body {
   box-sizing: border-box;
 }
 
+.container{
+    margin-top: 20px;
+}
 .indexContainer {
   max-width: 400px;
 }
@@ -75,6 +78,41 @@ input:focus {
   align-items: center;
 }
 
+.info-icon {
+  display: inline-block;
+  margin-left: 8px;
+  background-color: #cc3180;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: bold;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 50%;
+  cursor: help;
+  transition: background-color 0.3s ease;
+  vertical-align: middle;
+}
+
+.info-icon:hover {
+  background-color: #a02666;
+}
+
+.tooltip-form { margin-top: 2rem; }
+.tooltip-form textarea {
+  width: 100%;
+  min-height: 60px;
+  margin-bottom: 1rem;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.tooltip-form label {
+  font-weight: bold;
+  margin-top: 0.5rem;
+}
+ 
 button,
 .secondary-button {
   background-color: #cc3180;
@@ -90,8 +128,14 @@ button,
   transition: background-color 0.3s ease;
 }
 
+.secondary-button{
+  background-color: white;
+  color:#cc3180;
+  border:1px solid #cc3180;
+}
+
 button:hover,
-.secondary-button:hover {
+.secondary-button:hover{
   background-color: #a02666;
 }
 

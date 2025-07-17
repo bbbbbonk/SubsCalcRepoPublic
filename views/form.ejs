@@ -11,13 +11,21 @@
     <form action="/submit-form" method="POST">
 
       <fieldset>
-        <legend>Orderer Information</legend>
+      <legend>
+        Orderer Information
+        <span class="info-icon" title="<%= tooltips.ordererInfo %>">i</span>
+      </legend>
+
         <input type="text" name="ordererName" placeholder="Name of the person making the order" required />
         <input type="email" name="ordererEmail" placeholder="Email of the person making the order" required />
       </fieldset>
 
       <fieldset>
-        <legend>Partner Information</legend>
+      <legend>
+        Partner Information
+        <span class="info-icon" title="<%= tooltips.partnerInfo %>">i</span>
+      </legend>
+
         <input type="text" name="partnerCompany" placeholder="Partner company name" required />
         <input type="text" name="partnerSignatory" placeholder="Partner signatory name, position and email" required />
         <input type="text" name="partnerContactName" placeholder="Partner contact name" required />
@@ -26,7 +34,11 @@
       </fieldset>
 
       <fieldset>
-        <legend>Customer Information</legend>
+      <legend>
+        Customer Information
+        <span class="info-icon" title="<%= tooltips.customerInfo %>">i</span>
+      </legend>
+        
         <input type="text" name="customerCompany" placeholder="Customer company name" required />
         <input type="text" name="customerAddress" placeholder="Registered address" required />
         <input type="text" name="customerBusinessNumber" placeholder="Business number" required />
@@ -36,7 +48,11 @@
       </fieldset>
 
       <fieldset>
-        <legend>Fresh Subscription</legend>
+      <legend>
+        Fresh Subscription
+        <span class="info-icon" title="<%= tooltips.subscriptionInfo %>">i</span>
+      </legend>
+
         <input type="number" name="numUsers" min="1" placeholder="Number of users" />
 
           <select class="currencyDropdown" name="currency" required>

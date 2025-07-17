@@ -8,15 +8,16 @@
 <body>
     <div class="container">
         <h2>Enter Password to Access The Order Form</h2>
+        <p>Leave empty if password should not be needed</p>
         <% if (error) { %>
             <p style="color:red;"><%= error %></p>
         <% } %>
         <form action="/login" method="POST">
-            <input type="password" name="password" placeholder="Password" required />
+            <input type="password" name="password" placeholder="Password"/>
             <button type="submit">Login</button>
         </form>
         <form action="/" method="GET">
-            <button type="submit">Back to Home</button>
+        <button class="secondary-button" type="submit">Return</button>
         </form>
 
 

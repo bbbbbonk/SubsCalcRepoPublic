@@ -83,16 +83,40 @@
       <input type="email" id="email" name="email" value="<%= currentEmail %>" required />
       <button type="submit">Update Email</button>
     </form>
-  </div>
+    </div>
           <h3>Reset Order Form Password</h3>
       <form action="/requestResetCode" method="POST">
         <input type="email" name="email" required placeholder="Enter your admin email" />
         <button type="submit">Send Reset Code</button>
       </form>
-             <form id="returnForm" action="/" method="GET">
-        <button id="returnForm" type="submit">Return</button>
-      </form>
-    </div>
+        <form action="/" method="GET">
+        <button class="secondary-button" type="submit">Return</button>
+        </form>
+        
+  </div>        
+  <div class="container">
+            <% if (tooltipsMsg) { %>
+              <p><%= tooltipsMsg %></p>
+            <% } %>
+
+            <h3>Edit Field Tooltips</h3>
+            <form action="/updateTooltips" method="POST" class="tooltip-form">
+              <label>Orderer Info Tooltip</label>
+              <textarea name="ordererInfo"><%= tooltips.ordererInfo %></textarea>
+
+              <label>Partner Info Tooltip</label>
+              <textarea name="partnerInfo"><%= tooltips.partnerInfo %></textarea>
+
+              <label>Customer Info Tooltip</label>
+              <textarea name="customerInfo"><%= tooltips.customerInfo %></textarea>
+
+              <label>Subscription Info Tooltip</label>
+              <textarea name="subscriptionInfo"><%= tooltips.subscriptionInfo %></textarea>
+
+              <button type="submit">Save Tooltips</button>
+            </form>
+  </div>
+  
     <script>
     // Set the timeout duration in milliseconds (must match server-side maxAge)
     const sessionTimeout = 5 * 60 * 1000;  //huom. lasketaan millisekunneissa, eli näyttää tyhmältä sen takia.

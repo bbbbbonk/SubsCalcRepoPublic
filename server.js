@@ -8,7 +8,6 @@ import { DefaultAzureCredential } from "@azure/identity";
 import nodemailer from "nodemailer";
 import session from 'express-session';
 import bcrypt from "bcrypt";
-import crypto from "crypto";
 
 // Enable .env support (for local development)
 dotenvConfig();
@@ -233,9 +232,31 @@ app.get("/", (req, res) => {
   res.render("index");
 });
 
-// GET /form
-app.get("/form", requireAuth, (req, res) => {
-  res.render("form");
+// GET /form myös tooltipit haetaan dbstä
+app.get("/form", requireAuth, async (req, res) => {
+  try {
+    const tooltipIds = [
+      "ordererInfo",
+      "partnerInfo",
+      "customerInfo",
+      "subscriptionInfo"
+    ];
+
+    const tooltips = {};
+
+    for (const id of tooltipIds) {
+      const { resource } = await customerDatabase
+        .container("Tooltips")
+        .item(id, id)
+        .read();
+      tooltips[id] = resource?.text || "";
+    }
+
+    res.render("form", { tooltips }); // Pass tooltips to the form view
+  } catch (err) {
+    console.error("Error fetching tooltips:", err.message);
+    res.render("form", { tooltips: {} });
+  }
 });
 
 // GET /calculator
@@ -327,6 +348,19 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
     // Paginate results
     const paginatedCustomers = filteredCustomers.slice(offset, offset + limit);
     const totalPages = Math.ceil(filteredCustomers.length / limit);
+    
+    const tooltipIds = ["ordererInfo", "partnerInfo", "customerInfo", "subscriptionInfo"];
+    const tooltips = {};
+    const container = customerDatabase.container("Tooltips");
+
+    for (const id of tooltipIds) {
+      try {
+        const { resource } = await container.item(id, id).read();
+        tooltips[id] = resource?.text || "";
+      } catch {
+        tooltips[id] = ""; // default if missing
+      }
+    }
 
     res.render("orderAdmin", {
       customers: paginatedCustomers,
@@ -336,7 +370,9 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
       searchTerm,
       limit,
       currentEmail,
-      emailMessage: req.query.emailMessage || null  // Pass emailMessage from query string
+      emailMessage: req.query.emailMessage || null, // Pass emailMessage from query string
+      tooltips,
+      tooltipsMsg: req.query.tooltipsMsg || null
     });
 
   } catch (err) {
@@ -350,6 +386,28 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
       currentEmail: "",
       emailMessage: "Error fetching system email"
     });
+  }
+});
+
+//for updating tooltips to cosmos db
+app.post("/updateTooltips", requireOrderAdminOTP, async (req, res) => {
+  try {
+    const container = customerDatabase.container("Tooltips");
+    const updateOps = [
+      { id: "ordererInfo", text: req.body.ordererInfo },
+      { id: "partnerInfo", text: req.body.partnerInfo },
+      { id: "customerInfo", text: req.body.customerInfo },
+      { id: "subscriptionInfo", text: req.body.subscriptionInfo },
+    ];
+
+    for (const t of updateOps) {
+      await container.items.upsert({ id: t.id, text: t.text });
+    }
+
+    res.redirect("/orderAdmin?tooltipsMsg=" + encodeURIComponent("Tooltips updated."));
+  } catch (err) {
+    console.error("Tooltip update failed:", err);
+    res.redirect("/orderAdmin?tooltipsMsg=" + encodeURIComponent("Error updating tooltips."));
   }
 });
 
