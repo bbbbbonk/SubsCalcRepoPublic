@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Form Field Configuration</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Form Field Configuration</h1>
+    
+    <% if (message) { %>
+      <div class="alert"><%= message %></div>
+    <% } %>
+
+    <form action="/updateFormConfig" method="POST" class="config-form">
+      <!-- Orderer Information Section -->
+      <div class="section">
+        <h2>Orderer Information Section</h2>
+        
+        <div class="field-config">
+          <h3>Orderer Name Field</h3>
+          <div class="form-group">
+            <label for="ordererName-title">Field Title:</label>
+            <input type="text" id="ordererName-title" name="fields[ordererName][title]" 
+                   value="<%= configs.ordererName?.title || 'Orderer Name' %>">
+          </div>
+          <div class="form-group">
+            <label for="ordererName-placeholder">Placeholder Text:</label>
+            <input type="text" id="ordererName-placeholder" name="fields[ordererName][placeholder]" 
+                   value="<%= configs.ordererName?.placeholder || 'Name of the person making the order' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="ordererName-required" name="fields[ordererName][required]" 
+                   <%= configs.ordererName?.required ? 'checked' : '' %>>
+            <label for="ordererName-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Orderer Email Field</h3>
+          <div class="form-group">
+            <label for="ordererEmail-title">Field Title:</label>
+            <input type="text" id="ordererEmail-title" name="fields[ordererEmail][title]" 
+                   value="<%= configs.ordererEmail?.title || 'Orderer Email' %>">
+          </div>
+          <div class="form-group">
+            <label for="ordererEmail-placeholder">Placeholder Text:</label>
+            <input type="text" id="ordererEmail-placeholder" name="fields[ordererEmail][placeholder]" 
+                   value="<%= configs.ordererEmail?.placeholder || 'Email of the person making the order' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="ordererEmail-required" name="fields[ordererEmail][required]" 
+                   <%= configs.ordererEmail?.required ? 'checked' : '' %>>
+            <label for="ordererEmail-required">Required Field</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Partner Information Section -->
+      <div class="section">
+        <h2>Partner Information Section</h2>
+        
+        <div class="field-config">
+          <h3>Partner Company Field</h3>
+          <div class="form-group">
+            <label for="partnerCompany-title">Field Title:</label>
+            <input type="text" id="partnerCompany-title" name="fields[partnerCompany][title]" 
+                   value="<%= configs.partnerCompany?.title || 'Partner Company' %>">
+          </div>
+          <div class="form-group">
+            <label for="partnerCompany-placeholder">Placeholder Text:</label>
+            <input type="text" id="partnerCompany-placeholder" name="fields[partnerCompany][placeholder]" 
+                   value="<%= configs.partnerCompany?.placeholder || 'Partner company name' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="partnerCompany-required" name="fields[partnerCompany][required]" 
+                   <%= configs.partnerCompany?.required ? 'checked' : '' %>>
+            <label for="partnerCompany-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Partner Signatory Field</h3>
+          <div class="form-group">
+            <label for="partnerSignatory-title">Field Title:</label>
+            <input type="text" id="partnerSignatory-title" name="fields[partnerSignatory][title]" 
+                   value="<%= configs.partnerSignatory?.title || 'Partner Signatory' %>">
+          </div>
+          <div class="form-group">
+            <label for="partnerSignatory-placeholder">Placeholder Text:</label>
+            <input type="text" id="partnerSignatory-placeholder" name="fields[partnerSignatory][placeholder]" 
+                   value="<%= configs.partnerSignatory?.placeholder || 'Partner signatory name, position and email' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="partnerSignatory-required" name="fields[partnerSignatory][required]" 
+                   <%= configs.partnerSignatory?.required ? 'checked' : '' %>>
+            <label for="partnerSignatory-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Partner Contact Name Field</h3>
+          <div class="form-group">
+            <label for="partnerContactName-title">Field Title:</label>
+            <input type="text" id="partnerContactName-title" name="fields[partnerContactName][title]" 
+                   value="<%= configs.partnerContactName?.title || 'Partner Contact Name' %>">
+          </div>
+          <div class="form-group">
+            <label for="partnerContactName-placeholder">Placeholder Text:</label>
+            <input type="text" id="partnerContactName-placeholder" name="fields[partnerContactName][placeholder]" 
+                   value="<%= configs.partnerContactName?.placeholder || 'Partner contact name' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="partnerContactName-required" name="fields[partnerContactName][required]" 
+                   <%= configs.partnerContactName?.required ? 'checked' : '' %>>
+            <label for="partnerContactName-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Partner Contact Phone Field</h3>
+          <div class="form-group">
+            <label for="partnerContactPhone-title">Field Title:</label>
+            <input type="text" id="partnerContactPhone-title" name="fields[partnerContactPhone][title]" 
+                   value="<%= configs.partnerContactPhone?.title || 'Partner Contact Phone' %>">
+          </div>
+          <div class="form-group">
+            <label for="partnerContactPhone-placeholder">Placeholder Text:</label>
+            <input type="text" id="partnerContactPhone-placeholder" name="fields[partnerContactPhone][placeholder]" 
+                   value="<%= configs.partnerContactPhone?.placeholder || 'Partner contact phone number' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="partnerContactPhone-required" name="fields[partnerContactPhone][required]" 
+                   <%= configs.partnerContactPhone?.required ? 'checked' : '' %>>
+            <label for="partnerContactPhone-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Partner Contact Email Field</h3>
+          <div class="form-group">
+            <label for="partnerContactEmail-title">Field Title:</label>
+            <input type="text" id="partnerContactEmail-title" name="fields[partnerContactEmail][title]" 
+                   value="<%= configs.partnerContactEmail?.title || 'Partner Contact Email' %>">
+          </div>
+          <div class="form-group">
+            <label for="partnerContactEmail-placeholder">Placeholder Text:</label>
+            <input type="text" id="partnerContactEmail-placeholder" name="fields[partnerContactEmail][placeholder]" 
+                   value="<%= configs.partnerContactEmail?.placeholder || 'Partner contact email' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="partnerContactEmail-required" name="fields[partnerContactEmail][required]" 
+                   <%= configs.partnerContactEmail?.required ? 'checked' : '' %>>
+            <label for="partnerContactEmail-required">Required Field</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Customer Information Section -->
+      <div class="section">
+        <h2>Customer Information Section</h2>
+        
+        <div class="field-config">
+          <h3>Customer Company Field</h3>
+          <div class="form-group">
+            <label for="customerCompany-title">Field Title:</label>
+            <input type="text" id="customerCompany-title" name="fields[customerCompany][title]" 
+                   value="<%= configs.customerCompany?.title || 'Customer Company' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerCompany-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerCompany-placeholder" name="fields[customerCompany][placeholder]" 
+                   value="<%= configs.customerCompany?.placeholder || 'Customer company name' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerCompany-required" name="fields[customerCompany][required]" 
+                   <%= configs.customerCompany?.required ? 'checked' : '' %>>
+            <label for="customerCompany-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Customer Address Field</h3>
+          <div class="form-group">
+            <label for="customerAddress-title">Field Title:</label>
+            <input type="text" id="customerAddress-title" name="fields[customerAddress][title]" 
+                   value="<%= configs.customerAddress?.title || 'Customer Address' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerAddress-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerAddress-placeholder" name="fields[customerAddress][placeholder]" 
+                   value="<%= configs.customerAddress?.placeholder || 'Registered address' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerAddress-required" name="fields[customerAddress][required]" 
+                   <%= configs.customerAddress?.required ? 'checked' : '' %>>
+            <label for="customerAddress-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Customer Business Number Field</h3>
+          <div class="form-group">
+            <label for="customerBusinessNumber-title">Field Title:</label>
+            <input type="text" id="customerBusinessNumber-title" name="fields[customerBusinessNumber][title]" 
+                   value="<%= configs.customerBusinessNumber?.title || 'Business Number' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerBusinessNumber-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerBusinessNumber-placeholder" name="fields[customerBusinessNumber][placeholder]" 
+                   value="<%= configs.customerBusinessNumber?.placeholder || 'Business number' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerBusinessNumber-required" name="fields[customerBusinessNumber][required]" 
+                   <%= configs.customerBusinessNumber?.required ? 'checked' : '' %>>
+            <label for="customerBusinessNumber-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Customer Contact Name Field</h3>
+          <div class="form-group">
+            <label for="customerContactName-title">Field Title:</label>
+            <input type="text" id="customerContactName-title" name="fields[customerContactName][title]" 
+                   value="<%= configs.customerContactName?.title || 'Contact Name' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerContactName-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerContactName-placeholder" name="fields[customerContactName][placeholder]" 
+                   value="<%= configs.customerContactName?.placeholder || 'Customer contact name' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerContactName-required" name="fields[customerContactName][required]" 
+                   <%= configs.customerContactName?.required ? 'checked' : '' %>>
+            <label for="customerContactName-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Customer Contact Email Field</h3>
+          <div class="form-group">
+            <label for="customerContactEmail-title">Field Title:</label>
+            <input type="text" id="customerContactEmail-title" name="fields[customerContactEmail][title]" 
+                   value="<%= configs.customerContactEmail?.title || 'Contact Email' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerContactEmail-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerContactEmail-placeholder" name="fields[customerContactEmail][placeholder]" 
+                   value="<%= configs.customerContactEmail?.placeholder || 'Customer contact email' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerContactEmail-required" name="fields[customerContactEmail][required]" 
+                   <%= configs.customerContactEmail?.required ? 'checked' : '' %>>
+            <label for="customerContactEmail-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Customer Contact Phone Field</h3>
+          <div class="form-group">
+            <label for="customerContactPhone-title">Field Title:</label>
+            <input type="text" id="customerContactPhone-title" name="fields[customerContactPhone][title]" 
+                   value="<%= configs.customerContactPhone?.title || 'Contact Phone' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerContactPhone-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerContactPhone-placeholder" name="fields[customerContactPhone][placeholder]" 
+                   value="<%= configs.customerContactPhone?.placeholder || 'Customer contact phone number' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerContactPhone-required" name="fields[customerContactPhone][required]" 
+                   <%= configs.customerContactPhone?.required ? 'checked' : '' %>>
+            <label for="customerContactPhone-required">Required Field</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscription Information Section -->
+      <div class="section">
+        <h2>Subscription Information Section</h2>
+        
+        <div class="field-config">
+          <h3>Number of Users Field</h3>
+          <div class="form-group">
+            <label for="numUsers-title">Field Title:</label>
+            <input type="text" id="numUsers-title" name="fields[numUsers][title]" 
+                   value="<%= configs.numUsers?.title || 'Number of Users' %>">
+          </div>
+          <div class="form-group">
+            <label for="numUsers-placeholder">Placeholder Text:</label>
+            <input type="text" id="numUsers-placeholder" name="fields[numUsers][placeholder]" 
+                   value="<%= configs.numUsers?.placeholder || 'Number of users' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="numUsers-required" name="fields[numUsers][required]" 
+                   <%= configs.numUsers?.required ? 'checked' : '' %>>
+            <label for="numUsers-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Currency Dropdown</h3>
+          <div class="form-group">
+            <label for="currency-title">Field Title:</label>
+            <input type="text" id="currency-title" name="fields[currency][title]" 
+                   value="<%= configs.currency?.title || 'Currency' %>">
+          </div>
+          <div class="form-group">
+            <label for="currency-placeholder">Default Selection Text:</label>
+            <input type="text" id="currency-placeholder" name="fields[currency][placeholder]" 
+                   value="<%= configs.currency?.placeholder || 'Select currency' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="currency-required" name="fields[currency][required]" 
+                   <%= configs.currency?.required ? 'checked' : '' %>>
+            <label for="currency-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Customer Price Field</h3>
+          <div class="form-group">
+            <label for="customerPrice-title">Field Title:</label>
+            <input type="text" id="customerPrice-title" name="fields[customerPrice][title]" 
+                   value="<%= configs.customerPrice?.title || 'Customer Price' %>">
+          </div>
+          <div class="form-group">
+            <label for="customerPrice-placeholder">Placeholder Text:</label>
+            <input type="text" id="customerPrice-placeholder" name="fields[customerPrice][placeholder]" 
+                   value="<%= configs.customerPrice?.placeholder || 'Customer price' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="customerPrice-required" name="fields[customerPrice][required]" 
+                   <%= configs.customerPrice?.required ? 'checked' : '' %>>
+            <label for="customerPrice-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Start Date Field</h3>
+          <div class="form-group">
+            <label for="startDate-title">Field Title:</label>
+            <input type="text" id="startDate-title" name="fields[startDate][title]" 
+                   value="<%= configs.startDate?.title || 'Start Date' %>">
+          </div>
+          <div class="form-group">
+            <label for="startDate-placeholder">Placeholder Text:</label>
+            <input type="text" id="startDate-placeholder" name="fields[startDate][placeholder]" 
+                   value="<%= configs.startDate?.placeholder || 'Start date' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="startDate-required" name="fields[startDate][required]" 
+                   <%= configs.startDate?.required ? 'checked' : '' %>>
+            <label for="startDate-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Initial Term Field</h3>
+          <div class="form-group">
+            <label for="initialTerm-title">Field Title:</label>
+            <input type="text" id="initialTerm-title" name="fields[initialTerm][title]" 
+                   value="<%= configs.initialTerm?.title || 'Initial Term' %>">
+          </div>
+          <div class="form-group">
+            <label for="initialTerm-placeholder">Placeholder Text:</label>
+            <input type="text" id="initialTerm-placeholder" name="fields[initialTerm][placeholder]" 
+                   value="<%= configs.initialTerm?.placeholder || 'Initial term (months)' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="initialTerm-required" name="fields[initialTerm][required]" 
+                   <%= configs.initialTerm?.required ? 'checked' : '' %>>
+            <label for="initialTerm-required">Required Field</label>
+          </div>
+        </div>
+
+        <div class="field-config">
+          <h3>Tenant URL Field</h3>
+          <div class="form-group">
+            <label for="tenantURL-title">Field Title:</label>
+            <input type="text" id="tenantURL-title" name="fields[tenantURL][title]" 
+                   value="<%= configs.tenantURL?.title || 'Tenant URL' %>">
+          </div>
+          <div class="form-group">
+            <label for="tenantURL-placeholder">Placeholder Text:</label>
+            <input type="text" id="tenantURL-placeholder" name="fields[tenantURL][placeholder]" 
+                   value="<%= configs.tenantURL?.placeholder || 'Client tenant URL' %>">
+          </div>
+          <div class="form-group required-checkbox">
+            <input type="checkbox" id="tenantURL-required" name="fields[tenantURL][required]" 
+                   <%= configs.tenantURL?.required ? 'checked' : '' %>>
+            <label for="tenantURL-required">Required Field</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button type="submit" class="primary-button">Save All Configurations</button>
+        <a href="/orderAdmin" class="secondary-button">Back to Admin</a>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

@@ -225,6 +225,336 @@ const customerDatabase = cosmosClient.database("CustomerInfo");
 const customerContainer = customerDatabase.container("CustomerInfo");
 
 const adminConfigContainer=customerDatabase.container("adminConfig");
+
+const formConfigContainer = customerDatabase.container("FormConfig");
+
+// GET /initFormConfig - Initialize form configurations with defaults
+app.get("/initFormConfig", requireOrderAdminOTP, async (req, res) => {
+  try {
+    const defaultConfigs = [
+      // Form title
+      {
+        id: "formTitle",
+        fieldName: "formTitle",
+        title: "Order Form",
+        placeholder: "",
+        required: false
+      },
+      
+      // Section titles
+      {
+        id: "ordererSectionTitle",
+        fieldName: "ordererSectionTitle",
+        title: "Orderer Information",
+        placeholder: "",
+        required: false
+      },
+      {
+        id: "partnerSectionTitle",
+        fieldName: "partnerSectionTitle",
+        title: "Partner Information",
+        placeholder: "",
+        required: false
+      },
+      {
+        id: "customerSectionTitle",
+        fieldName: "customerSectionTitle",
+        title: "Customer Information",
+        placeholder: "",
+        required: false
+      },
+      {
+        id: "subscriptionSectionTitle",
+        fieldName: "subscriptionSectionTitle",
+        title: "Fresh Subscription",
+        placeholder: "",
+        required: false
+      },
+
+      // Orderer Information Fields
+      {
+        id: "ordererName",
+        fieldName: "ordererName",
+        title: "Orderer Name",
+        placeholder: "Name of the person making the order",
+        required: true
+      },
+      {
+        id: "ordererEmail",
+        fieldName: "ordererEmail",
+        title: "Orderer Email",
+        placeholder: "Email of the person making the order",
+        required: true
+      },
+
+      // Partner Information Fields
+      {
+        id: "partnerCompany",
+        fieldName: "partnerCompany",
+        title: "Partner Company",
+        placeholder: "Partner company name",
+        required: true
+      },
+      {
+        id: "partnerSignatory",
+        fieldName: "partnerSignatory",
+        title: "Partner Signatory",
+        placeholder: "Partner signatory name, position and email",
+        required: true
+      },
+      {
+        id: "partnerContactName",
+        fieldName: "partnerContactName",
+        title: "Partner Contact Name",
+        placeholder: "Partner contact name",
+        required: true
+      },
+      {
+        id: "partnerContactPhone",
+        fieldName: "partnerContactPhone",
+        title: "Partner Contact Phone",
+        placeholder: "Partner contact phone number",
+        required: true
+      },
+      {
+        id: "partnerContactEmail",
+        fieldName: "partnerContactEmail",
+        title: "Partner Contact Email",
+        placeholder: "Partner contact email",
+        required: true
+      },
+
+      // Customer Information Fields
+      {
+        id: "customerCompany",
+        fieldName: "customerCompany",
+        title: "Customer Company",
+        placeholder: "Customer company name",
+        required: true
+      },
+      {
+        id: "customerAddress",
+        fieldName: "customerAddress",
+        title: "Customer Address",
+        placeholder: "Registered address",
+        required: true
+      },
+      {
+        id: "customerBusinessNumber",
+        fieldName: "customerBusinessNumber",
+        title: "Business Number",
+        placeholder: "Business number",
+        required: true
+      },
+      {
+        id: "customerContactName",
+        fieldName: "customerContactName",
+        title: "Contact Name",
+        placeholder: "Customer contact name",
+        required: true
+      },
+      {
+        id: "customerContactEmail",
+        fieldName: "customerContactEmail",
+        title: "Contact Email",
+        placeholder: "Customer contact email",
+        required: true
+      },
+      {
+        id: "customerContactPhone",
+        fieldName: "customerContactPhone",
+        title: "Contact Phone",
+        placeholder: "Customer contact phone number",
+        required: true
+      },
+
+      // Subscription Information Fields
+      {
+        id: "numUsers",
+        fieldName: "numUsers",
+        title: "Number of Users",
+        placeholder: "Number of users",
+        required: true
+      },
+      {
+        id: "currency",
+        fieldName: "currency",
+        title: "Currency",
+        placeholder: "Select currency",
+        required: true
+      },
+      {
+        id: "customerPrice",
+        fieldName: "customerPrice",
+        title: "Customer Price",
+        placeholder: "Customer price",
+        required: true
+      },
+      {
+        id: "startDate",
+        fieldName: "startDate",
+        title: "Start Date",
+        placeholder: "Start date",
+        required: true
+      },
+      {
+        id: "initialTerm",
+        fieldName: "initialTerm",
+        title: "Initial Term",
+        placeholder: "Initial term (months)",
+        required: true
+      },
+      {
+        id: "tenantURL",
+        fieldName: "tenantURL",
+        title: "Tenant URL",
+        placeholder: "Client tenant URL",
+        required: true
+      }
+    ];
+
+    // Upsert all configurations in parallel
+    await Promise.all(defaultConfigs.map(config => 
+      formConfigContainer.items.upsert(config)
+    ));
+
+    res.redirect("/formConfig?message=" + 
+      encodeURIComponent("Form configurations initialized with defaults"));
+  } catch (err) {
+    console.error("Error initializing form configs:", err);
+    res.redirect("/formConfig?message=" + 
+      encodeURIComponent("Error initializing form configurations: " + err.message));
+  }
+});
+
+// GET /formConfig - Retrieve all form field configurations
+app.get("/formConfig", requireOrderAdminOTP, async (req, res) => {
+  try {
+    const { resources: configs } = await formConfigContainer.items.query({
+      query: "SELECT * FROM c"
+    }).fetchAll();
+
+    // Convert array of configs to an object by field name for easier access
+    const configMap = {};
+    configs.forEach(config => {
+      configMap[config.fieldName] = config;
+    });
+
+    res.render("formConfig", { 
+      configs: configMap,
+      message: req.query.message || null
+    });
+  } catch (err) {
+    console.error("Error fetching form configs:", err);
+    res.status(500).render("formConfig", {
+      configs: {},
+      message: "Error loading form configurations"
+    });
+  }
+});
+
+// POST /updateFormConfig - Update form field configurations
+app.post("/updateFormConfig", requireOrderAdminOTP, async (req, res) => {
+  try {
+    const updates = [];
+    
+    // Process each field configuration
+    for (const fieldName in req.body.fields) {
+      const fieldConfig = req.body.fields[fieldName];
+      
+      const configItem = {
+        id: fieldName,
+        fieldName: fieldName,
+        title: fieldConfig.title,
+        placeholder: fieldConfig.placeholder,
+        required: fieldConfig.required === "on"
+      };
+
+      updates.push(formConfigContainer.items.upsert(configItem));
+    }
+
+    await Promise.all(updates);
+    res.redirect("/formConfig?message=" + encodeURIComponent("Form configurations updated successfully"));
+  } catch (err) {
+    console.error("Error updating form configs:", err);
+    res.redirect("/formConfig?message=" + encodeURIComponent("Error updating form configurations"));
+  }
+});
+// GET /initFormConfig - Initialize form configurations with defaults
+app.get("/initFormConfig", requireOrderAdminOTP, async (req, res) => {
+  try {
+    const defaultConfigs = [
+      {
+        id: "ordererName",
+        fieldName: "ordererName",
+        title: "Orderer Name",
+        placeholder: "Name of the person making the order",
+        required: true
+      },
+      {
+        id: "ordererEmail",
+        fieldName: "ordererEmail",
+        title: "Orderer Email",
+        placeholder: "Email of the person making the order",
+        required: true
+      },
+      // Add all other fields with their defaults
+    ];
+
+    await Promise.all(defaultConfigs.map(config => 
+      formConfigContainer.items.upsert(config)
+    ));
+
+    res.redirect("/formConfig?message=" + encodeURIComponent("Form configurations initialized with defaults"));
+  } catch (err) {
+    console.error("Error initializing form configs:", err);
+    res.redirect("/formConfig?message=" + encodeURIComponent("Error initializing form configurations"));
+  }
+});
+
+// Modify your /form route to include field configurations
+app.get("/form", requireAuth, async (req, res) => {
+  try {
+    // Fetch tooltips
+    const tooltipIds = [
+      "ordererInfo",
+      "partnerInfo",
+      "customerInfo",
+      "subscriptionInfo"
+    ];
+
+    const tooltips = {};
+    for (const id of tooltipIds) {
+      const { resource } = await customerDatabase
+        .container("Tooltips")
+        .item(id, id)
+        .read();
+      tooltips[id] = resource?.text || "";
+    }
+
+    // Fetch form field configurations
+    const { resources: fieldConfigs } = await formConfigContainer.items.query({
+      query: "SELECT * FROM c"
+    }).fetchAll();
+
+    const fieldConfigMap = {};
+    fieldConfigs.forEach(config => {
+      fieldConfigMap[config.fieldName] = config;
+    });
+
+    res.render("form", { 
+      tooltips,
+      fieldConfigs: fieldConfigMap
+    });
+  } catch (err) {
+    console.error("Error loading form:", err.message);
+    res.render("form", { 
+      tooltips: {},
+      fieldConfigs: {}
+    });
+  }
+});
+
 // Routes
 
 // GET /
@@ -265,11 +595,26 @@ app.get("/calculator", (req, res) => {
 });
 
 //authentikointia loginille
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated) {
     return next();
   }
-  res.redirect('/login');
+
+  try {
+    const { resource: config } = await adminConfigContainer
+      .item("adminCredentials", "adminCredentials")
+      .read();
+
+    if (!config.adminPassword || config.adminPassword === "") {
+      req.session.authenticated = true;
+      return next();
+    } else {
+      return res.redirect("/login");
+    }
+  } catch (err) {
+    console.error("Auth check failed:", err);
+    return res.redirect("/login");
+  }
 }
 
 // GET /login /formille
@@ -280,13 +625,18 @@ app.get('/login', (req, res) => {
 // POST /login
 app.post('/login', async (req, res) => {
   const { password } = req.body;
-  
+
   try {
-    // Read from adminConfig container password for logging into order form
     const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
-    
+
     if (!config) {
       return res.render('login', { error: 'Admin configuration not found' });
+    }
+
+    // If password in DB is null or empty string, allow automatic login
+    if (!config.adminPassword || config.adminPassword === "") {
+      req.session.authenticated = true;
+      return res.redirect('/form');
     }
 
     const match = await bcrypt.compare(password, config.adminPassword);
