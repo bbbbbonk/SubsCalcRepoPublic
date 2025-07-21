@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Information</title>
+  <link rel="stylesheet" href="/styles.css" />
+
+</head>
+<body>
+  <div class="container">
+    <h1>Information</h1>
+    <p>Note: Please have the following information ready before filling out the order form:</p>
+
+    <% for (const [sectionKey, section] of Object.entries(sections)) { %>
+      <div class="info-section">
+        <h2><%= section.title %></h2>
+        
+        <% if (section.fields.length > 0) { %>
+          <ul style="list-style-type: none; padding-left: 0;">
+            <% section.fields.forEach(field => { %>
+              <li class="info-field <%= field.required ? 'required-field' : '' %>">
+                <strong><%= field.title %></strong>
+                <% if (field.placeholder) { %>
+                  <div class="field-hint"><%= field.placeholder %></div>
+                <% } %>
+              </li>
+            <% }); %>
+          </ul>
+        <% } else { %>
+          <p>No fields configured for this section.</p>
+        <% } %>
+      </div>
+    <% } %>
+
+    <form action="/form" method="GET" style="margin-top: 2rem;">
+      <button type="submit" class="primary-button">Proceed to Order Form</button>
+    </form>
+  </div>
+</body>
+</html>

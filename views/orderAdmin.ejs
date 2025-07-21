@@ -101,17 +101,17 @@
 
             <h3>Edit Field Tooltips</h3>
             <form action="/updateTooltips" method="POST" class="tooltip-form">
-              <label>Orderer Info Tooltip</label>
-              <textarea name="ordererInfo"><%= tooltips.ordererInfo %></textarea>
+            <label><%= configs?.ordererSectionTitle?.title || 'Orderer Information' %> Tooltip</label>
+            <textarea name="ordererInfo"><%= tooltips.ordererInfo %></textarea>
 
-              <label>Partner Info Tooltip</label>
-              <textarea name="partnerInfo"><%= tooltips.partnerInfo %></textarea>
+            <label><%= configs?.partnerSectionTitle?.title || 'Partner Information' %> Tooltip</label>
+            <textarea name="partnerInfo"><%= tooltips.partnerInfo %></textarea>
 
-              <label>Customer Info Tooltip</label>
-              <textarea name="customerInfo"><%= tooltips.customerInfo %></textarea>
+            <label><%= configs?.customerSectionTitle?.title || 'Customer Information' %> Tooltip</label>
+            <textarea name="customerInfo"><%= tooltips.customerInfo %></textarea>
 
-              <label>Subscription Info Tooltip</label>
-              <textarea name="subscriptionInfo"><%= tooltips.subscriptionInfo %></textarea>
+            <label><%= configs?.subscriptionSectionTitle?.title || 'Subscription Information' %> Tooltip</label>
+            <textarea name="subscriptionInfo"><%= tooltips.subscriptionInfo %></textarea>
 
               <button type="submit">Save Tooltips</button>
             </form>

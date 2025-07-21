@@ -617,6 +617,72 @@ async function requireAuth(req, res, next) {
   }
 }
 
+// GET /info
+app.get("/info", async (req, res) => {
+  try {
+    // Fetch form field configurations
+    const { resources: fieldConfigs } = await formConfigContainer.items.query({
+      query: "SELECT * FROM c"
+    }).fetchAll();
+
+    // Organize by section using titles
+    const sections = {
+      orderer: {
+        title: fieldConfigs.find(c => c.fieldName === 'ordererSectionTitle')?.title || 'Orderer Information',
+        fields: [
+          fieldConfigs.find(c => c.fieldName === 'ordererName'),
+          fieldConfigs.find(c => c.fieldName === 'ordererEmail')
+        ].filter(Boolean)
+      },
+      partner: {
+        title: fieldConfigs.find(c => c.fieldName === 'partnerSectionTitle')?.title || 'Partner Information',
+        fields: [
+          fieldConfigs.find(c => c.fieldName === 'partnerCompany'),
+          fieldConfigs.find(c => c.fieldName === 'partnerSignatory'),
+          fieldConfigs.find(c => c.fieldName === 'partnerContactName'),
+          fieldConfigs.find(c => c.fieldName === 'partnerContactPhone'),
+          fieldConfigs.find(c => c.fieldName === 'partnerContactEmail')
+        ].filter(Boolean)
+      },
+      customer: {
+        title: fieldConfigs.find(c => c.fieldName === 'customerSectionTitle')?.title || 'Customer Information',
+        fields: [
+          fieldConfigs.find(c => c.fieldName === 'customerCompany'),
+          fieldConfigs.find(c => c.fieldName === 'customerAddress'),
+          fieldConfigs.find(c => c.fieldName === 'customerBusinessNumber'),
+          fieldConfigs.find(c => c.fieldName === 'customerContactName'),
+          fieldConfigs.find(c => c.fieldName === 'customerContactEmail'),
+          fieldConfigs.find(c => c.fieldName === 'customerContactPhone')
+        ].filter(Boolean)
+      },
+      subscription: {
+        title: fieldConfigs.find(c => c.fieldName === 'subscriptionSectionTitle')?.title || 'Subscription Information',
+        fields: [
+          fieldConfigs.find(c => c.fieldName === 'numUsers'),
+          fieldConfigs.find(c => c.fieldName === 'currency'),
+          fieldConfigs.find(c => c.fieldName === 'customerPrice'),
+          fieldConfigs.find(c => c.fieldName === 'startDate'),
+          fieldConfigs.find(c => c.fieldName === 'initialTerm'),
+          fieldConfigs.find(c => c.fieldName === 'tenantURL')
+        ].filter(Boolean)
+      }
+    };
+
+    res.render("info", { sections });
+  } catch (err) {
+    console.error("Error loading form info:", err);
+    // Fallback with empty sections if there's an error
+    res.render("info", {
+      sections: {
+        orderer: { title: 'Orderer Information', fields: [] },
+        partner: { title: 'Partner Information', fields: [] },
+        customer: { title: 'Customer Information', fields: [] },
+        subscription: { title: 'Subscription Information', fields: [] }
+      }
+    });
+  }
+});
+
 // GET /login /formille
 app.get('/login', (req, res) => {
   res.render('login', { error: null });
@@ -653,7 +719,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-function requireOrderAdminOTP(req, res, next) {
+function requireOrderAdminOTP (req, res, next) {                                                              //OTA POIS KOMMENTTI LOPETTAESSA
   if (req.session && req.session.orderAdminVerified) {
     return next();
   }
@@ -661,6 +727,7 @@ function requireOrderAdminOTP(req, res, next) {
 }
 
 /// GET /orderAdmin
+// GET /orderAdmin
 app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
   try {
     const searchTerm = req.query.search || "";
@@ -699,6 +766,7 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
     const paginatedCustomers = filteredCustomers.slice(offset, offset + limit);
     const totalPages = Math.ceil(filteredCustomers.length / limit);
     
+    // Fetch tooltips
     const tooltipIds = ["ordererInfo", "partnerInfo", "customerInfo", "subscriptionInfo"];
     const tooltips = {};
     const container = customerDatabase.container("Tooltips");
@@ -712,6 +780,17 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
       }
     }
 
+    // Fetch form configurations
+    const { resources: configs } = await formConfigContainer.items.query({
+      query: "SELECT * FROM c"
+    }).fetchAll();
+
+    // Convert array of configs to an object by field name for easier access
+    const configMap = {};
+    configs.forEach(config => {
+      configMap[config.fieldName] = config;
+    });
+
     res.render("orderAdmin", {
       customers: paginatedCustomers,
       message: null,
@@ -720,9 +799,10 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
       searchTerm,
       limit,
       currentEmail,
-      emailMessage: req.query.emailMessage || null, // Pass emailMessage from query string
+      emailMessage: req.query.emailMessage || null,
       tooltips,
-      tooltipsMsg: req.query.tooltipsMsg || null
+      tooltipsMsg: req.query.tooltipsMsg || null,
+      configs: configMap
     });
 
   } catch (err) {
@@ -734,7 +814,15 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
       totalPages: 1,
       searchTerm: "",
       currentEmail: "",
-      emailMessage: "Error fetching system email"
+      emailMessage: "Error fetching system email",
+      tooltips: {
+        ordererInfo: "",
+        partnerInfo: "",
+        customerInfo: "",
+        subscriptionInfo: ""
+      },
+      tooltipsMsg: null,
+      configs: {}
     });
   }
 });
@@ -941,52 +1029,64 @@ app.post("/submit-form", async (req, res) => {
     currency
   } = req.body;
 
-  const { resources: emailDoc } = await customerContainer.items
-    .query({
+  try {
+    // Fetch system email
+    const { resources: emailDoc } = await customerContainer.items.query({
       query: "SELECT * FROM c WHERE c.id = @id",
       parameters: [{ name: "@id", value: "sysemail" }]
-    })
-    .fetchAll();
+    }).fetchAll();
 
-  const sysemail = emailDoc[0]?.email || "";
+    const sysemail = emailDoc[0]?.email || "";
 
-  const item = {
-    id: `${Date.now()}`,
-    ordererName,
-    ordererEmail,
-    partnerCompany,
-    partnerSignatory,
-    partnerContactName,
-    partnerContactPhone,
-    partnerContactEmail,
-    customerCompany,
-    customerAddress,
-    customerBusinessNumber,
-    customerContactName,
-    customerContactEmail,
-    customerContactPhone,
-    numUsers: Number(numUsers || 0),
-    customerPrice: parseFloat(customerPrice || 0),
-    currency,
-    startDate,
-    initialTerm,
-    tenantURL,
-    sysemail,
-    submittedAt: new Date().toISOString()
-  };
+    // Fetch field configurations
+    const { resources: fieldConfigs } = await formConfigContainer.items.query({
+      query: "SELECT * FROM c"
+    }).fetchAll();
 
-  try {
+    const fieldConfigMap = {};
+    fieldConfigs.forEach(config => {
+      fieldConfigMap[config.fieldName] = config;
+    });
+
+    // Prepare DB item
+    const item = {
+      id: `${Date.now()}`,
+      ordererName,
+      ordererEmail,
+      partnerCompany,
+      partnerSignatory,
+      partnerContactName,
+      partnerContactPhone,
+      partnerContactEmail,
+      customerCompany,
+      customerAddress,
+      customerBusinessNumber,
+      customerContactName,
+      customerContactEmail,
+      customerContactPhone,
+      numUsers: Number(numUsers || 0),
+      customerPrice: parseFloat(customerPrice || 0),
+      currency,
+      startDate,
+      initialTerm,
+      tenantURL,
+      sysemail,
+      submittedAt: new Date().toISOString()
+    };
+
+    // Save to Cosmos DB
     const { resource } = await customerContainer.items.create(item, {
       partitionKey: customerCompany
     });
+
     console.log("Inserted item into Cosmos DB:", resource);
 
-    // Email sending logic
+    // Send email
     const transporter = nodemailer.createTransport({
-      service: 'gmail', // or 'Outlook365', 'SendGrid' etc.
+      service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER,           
-        pass: process.env.EMAIL_PASS       
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
       }
     });
 
@@ -996,20 +1096,20 @@ app.post("/submit-form", async (req, res) => {
       subject: `New Order Submission: ${customerCompany}`,
       html: `
         <h2>New Order Submitted</h2>
-        <p><strong>Orderer:</strong> ${ordererName}</p>
-        <p><strong>Orderer email:</strong> ${ordererEmail}</p>
-        <p><strong>Partner Company:</strong> ${partnerCompany}</p>
-        <p><strong>Customer Company:</strong> ${customerCompany}</p>
-        <p><strong>Customer Address:</strong> ${customerAddress}</p>
-        <p><strong>Business Number:</strong> ${customerBusinessNumber}</p>
-        <p><strong>Contact Name:</strong> ${customerContactName}</p>
-        <p><strong>Contact Email:</strong> ${customerContactEmail}</p>
-        <p><strong>Number of users:</strong> ${numUsers}</p>
-        <p><strong>Customer price:</strong> ${customerPrice}</p>
-        <p><strong>Currency:</strong> ${currency}</p>
-        <p><strong>Start Date:</strong> ${startDate}</p>
-        <p><strong>Initial Term:</strong> ${initialTerm} months</p>
-        <p><strong>Tenant URL:</strong> ${tenantURL}</p>
+        <p><strong>${fieldConfigMap.ordererName?.title || 'Orderer'}:</strong> ${ordererName}</p>
+        <p><strong>${fieldConfigMap.ordererEmail?.title || 'Orderer email'}:</strong> ${ordererEmail}</p>
+        <p><strong>${fieldConfigMap.partnerCompany?.title || 'Partner Company'}:</strong> ${partnerCompany}</p>
+        <p><strong>${fieldConfigMap.customerCompany?.title || 'Customer Company'}:</strong> ${customerCompany}</p>
+        <p><strong>${fieldConfigMap.customerAddress?.title || 'Customer Address'}:</strong> ${customerAddress}</p>
+        <p><strong>${fieldConfigMap.customerBusinessNumber?.title || 'Business Number'}:</strong> ${customerBusinessNumber}</p>
+        <p><strong>${fieldConfigMap.customerContactName?.title || 'Contact Name'}:</strong> ${customerContactName}</p>
+        <p><strong>${fieldConfigMap.customerContactEmail?.title || 'Contact Email'}:</strong> ${customerContactEmail}</p>
+        <p><strong>${fieldConfigMap.numUsers?.title || 'Number of users'}:</strong> ${numUsers}</p>
+        <p><strong>${fieldConfigMap.customerPrice?.title || 'Customer price'}:</strong> ${customerPrice}</p>
+        <p><strong>${fieldConfigMap.currency?.title || 'Currency'}:</strong> ${currency}</p>
+        <p><strong>${fieldConfigMap.startDate?.title || 'Start Date'}:</strong> ${startDate}</p>
+        <p><strong>${fieldConfigMap.initialTerm?.title || 'Initial Term'}:</strong> ${initialTerm} months</p>
+        <p><strong>${fieldConfigMap.tenantURL?.title || 'Tenant URL'}:</strong> ${tenantURL}</p>
         <hr />
         <p>This is an automated message.</p>
       `
@@ -1018,7 +1118,6 @@ app.post("/submit-form", async (req, res) => {
     await transporter.sendMail(mailOptions);
     console.log("Email sent successfully");
 
-    // Render thank you page
     res.render("thankyou", {
       ordererName,
       customerCompany,

@@ -16,7 +16,11 @@
     <form action="/updateFormConfig" method="POST" class="config-form">
       <!-- Orderer Information Section -->
       <div class="section">
-        <h2>Orderer Information Section</h2>
+        <div class="form-group">
+          <label for="ordererSectionTitle-title">Section Title:</label>
+          <input type="text" id="ordererSectionTitle-title" name="fields[ordererSectionTitle][title]" 
+                 value="<%= configs.ordererSectionTitle?.title || 'Orderer Information' %>">
+        </div>
         
         <div class="field-config">
           <h3>Orderer Name Field</h3>
@@ -59,7 +63,11 @@
 
       <!-- Partner Information Section -->
       <div class="section">
-        <h2>Partner Information Section</h2>
+        <div class="form-group">
+          <label for="partnerSectionTitle-title">Section Title:</label>
+          <input type="text" id="partnerSectionTitle-title" name="fields[partnerSectionTitle][title]" 
+                 value="<%= configs.partnerSectionTitle?.title || 'Partner Information' %>">
+        </div>
         
         <div class="field-config">
           <h3>Partner Company Field</h3>
@@ -159,7 +167,11 @@
 
       <!-- Customer Information Section -->
       <div class="section">
-        <h2>Customer Information Section</h2>
+        <div class="form-group">
+          <label for="customerSectionTitle-title">Section Title:</label>
+          <input type="text" id="customerSectionTitle-title" name="fields[customerSectionTitle][title]" 
+                 value="<%= configs.customerSectionTitle?.title || 'Customer Information' %>">
+        </div>
         
         <div class="field-config">
           <h3>Customer Company Field</h3>
@@ -278,7 +290,11 @@
 
       <!-- Subscription Information Section -->
       <div class="section">
-        <h2>Subscription Information Section</h2>
+        <div class="form-group">
+          <label for="subscriptionSectionTitle-title">Section Title:</label>
+          <input type="text" id="subscriptionSectionTitle-title" name="fields[subscriptionSectionTitle][title]" 
+                 value="<%= configs.subscriptionSectionTitle?.title || 'Subscription Information' %>">
+        </div>
         
         <div class="field-config">
           <h3>Number of Users Field</h3>

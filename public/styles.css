@@ -414,6 +414,34 @@ textarea.show-error:invalid {
     .primary-button:hover, .secondary-button:hover {
       opacity: 0.8;
     }
+
+
+        .info-section {
+      margin-bottom: 2rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 5px;
+    }
+    .info-section h2 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+    .info-field {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: white;
+      border-left: 4px solid #3498db;
+    }
+    .required-field::after {
+      content: " *";
+      color: red;
+    }
+    .field-hint {
+      color: #666;
+      font-size: 0.9em;
+      margin-top: 0.25rem;
+    }
+    
 /* Tablet styles (≤900px) */
 @media screen and (max-width: 900px) {
   body {
