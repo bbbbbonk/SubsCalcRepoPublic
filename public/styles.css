@@ -448,10 +448,12 @@ textarea.show-error:invalid {
   display: flex;
   gap: 10px;
   margin-bottom: 15px;
-}
+  }
 
 #importQuoteBtn {
   white-space: nowrap;
+  padding: 10px;
+  font-size:15px;
 }
 
 #quoteCodeInput {
