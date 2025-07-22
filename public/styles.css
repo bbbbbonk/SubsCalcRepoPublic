@@ -328,6 +328,7 @@ th {
 input.show-error, select.show-error, textarea.show-error {
   outline: 2px solid red;
 }
+
 input.show-error:invalid,
 select.show-error:invalid,
 textarea.show-error:invalid {
@@ -411,6 +412,7 @@ textarea.show-error:invalid {
   transition: background-color 0.3s ease;
     }
 
+
     .primary-button:hover, .secondary-button:hover {
       opacity: 0.8;
     }
@@ -441,87 +443,148 @@ textarea.show-error:invalid {
       font-size: 0.9em;
       margin-top: 0.25rem;
     }
-    
+
+    .import-quote-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+#importQuoteBtn {
+  white-space: nowrap;
+}
+
+#quoteCodeInput {
+  flex-grow: 1;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
 /* Tablet styles (≤900px) */
 @media screen and (max-width: 900px) {
   body {
     padding: 20px 10px;
   }
 
+  h1 {
+    font-size: 1.75rem;
+    text-align: center;
+  }
+
   .container,
-  .indexContainer,
-  .OrderContainer,
-  .resultDiv {
+  .config-form {
+    width: 100%;
+    max-width: 100%;
+    margin: 10px auto;
     padding: 20px;
-    margin: 10px;
+    border-radius: 10px;
   }
 
-  .button-group {
-    gap: 50px;
+  .section {
+    margin-bottom: 20px;
   }
 
+  .field-config > h3 {
+    font-size: 1.1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .required-checkbox {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  input[type="text"],
   button,
+  .primary-button,
   .secondary-button {
     width: 100%;
     font-size: 1rem;
-    padding: 14px 20px;
+    padding: 12px;
   }
 
-  .adminViews {
-    bottom: 10px;
-    right: 10px;
+  .button-group {
+    flex-direction: column;
+    gap: 15px;
   }
 
-  table {
+  .alert {
     font-size: 0.95rem;
+    padding: 12px;
   }
 }
+
 
 /* Mobile styles (≤600px) */
 @media screen and (max-width: 600px) {
   body {
     padding: 10px 5px;
+    font-size: 0.9rem;
   }
 
   h1 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
+    text-align: center;
+    margin-bottom: 1rem;
   }
 
   .container,
-  .indexContainer,
-  .OrderContainer,
-  .resultDiv {
+  .config-form {
     padding: 15px;
     border-radius: 8px;
+    width: 100%;
     max-width: 100%;
+    margin: 10px auto;
   }
 
-  input {
+  .section {
+    margin-bottom: 15px;
+  }
+
+  .field-config {
+    padding: 12px;
+  }
+
+  .field-config > h3 {
+    font-size: 1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  input[type="text"] {
     font-size: 0.9rem;
+    padding: 10px;
+  }
+
+  .required-checkbox {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    gap: 12px;
   }
 
   button,
+  .primary-button,
   .secondary-button {
-    font-size: 1rem;
-    padding: 18px 16px;
+    font-size: 0.95rem;
+    padding: 12px;
   }
 
-  .pagination a,
-  .pagination strong {
-    padding: 6px 10px;
+  .alert {
     font-size: 0.9rem;
-  }
-
-  .adminButton {
-    font-size: 0.8rem;
-    padding: 6px 10px;
-  }
-
-  .calcDiv{
-    width: 90%;
-  }
-  .resultDiv a {
-    width: 50%;
-    text-align: center;
+    padding: 10px;
   }
 }

@@ -69,7 +69,12 @@
             <%= fieldConfigs.customerSectionTitle?.title || 'Customer Information' %>
             <span class="info-icon" title="<%= tooltips.customerInfo %>">i</span>
           </legend>
-          
+
+              <div class="import-quote-container">
+                <button type="button" id="importQuoteBtn" class="secondary-button">Import Quote from Code</button>
+                <input type="text" id="quoteCodeInput" placeholder="Enter quote code">
+              </div>
+
           <input type="text" name="customerCompany" 
                  placeholder="<%= fieldConfigs.customerCompany?.placeholder || 'Customer company name' %>" 
                  <%= fieldConfigs.customerCompany?.required ? 'required' : '' %>>
@@ -82,7 +87,7 @@
                  placeholder="<%= fieldConfigs.customerBusinessNumber?.placeholder || 'Business number' %>" 
                  <%= fieldConfigs.customerBusinessNumber?.required ? 'required' : '' %>>
                  
-          <input type="text" name="customerContactName" 
+          <input type="text" id="customerContactName" name="customerContactName" 
                  placeholder="<%= fieldConfigs.customerContactName?.placeholder || 'Customer contact name' %>" 
                  <%= fieldConfigs.customerContactName?.required ? 'required' : '' %>>
                  
@@ -104,11 +109,11 @@
             <span class="info-icon" title="<%= tooltips.subscriptionInfo %>">i</span>
           </legend>
           
-          <input type="number" name="numUsers" min="1" 
+          <input type="number" id="numUsers" name="numUsers" min="1" 
                  placeholder="<%= fieldConfigs.numUsers?.placeholder || 'Number of users' %>" 
                  <%= fieldConfigs.numUsers?.required ? 'required' : '' %>>
                  
-          <select class="currencyDropdown" name="currency" 
+          <select id="currency" class="currencyDropdown" name="currency" 
                  <%= fieldConfigs.currency?.required ? 'required' : '' %>>
             <option value="" disabled selected>
               <%= fieldConfigs.currency?.placeholder || 'Select currency' %>
@@ -118,7 +123,7 @@
             <option value="USD">USD</option>
           </select>
           
-          <input type="number" step="0.01" name="customerPrice" 
+          <input type="number" id="customerPrice" step="0.01" name="customerPrice" 
                  placeholder="<%= fieldConfigs.customerPrice?.placeholder || 'Customer price' %>" 
                  <%= fieldConfigs.customerPrice?.required ? 'required' : '' %>>
                  
@@ -155,6 +160,76 @@
   </div>
 
   <script>
+
+document.getElementById('importQuoteBtn').addEventListener('click', async () => {
+  const quoteCode = document.getElementById('quoteCodeInput').value.trim();
+  const importBtn = document.getElementById('importQuoteBtn');
+  
+  if (!quoteCode) {
+    showAlert('Please enter a quote code', 'error');
+    return;
+  }
+
+  try {
+    importBtn.disabled = true;
+    importBtn.textContent = 'Loading...';
+    
+    const response = await fetch(`/get-quote/${quoteCode}`);
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to import quote');
+    }
+
+    // Safely set values with null checks
+    const fieldsToSet = [
+      { selector: '#customerContactName', value: data.customerContactName },
+      { selector: '#numUsers', value: data.numUsers },
+      { selector: '#currency', value: data.currency },
+      { selector: '#customerPrice', value: data.customerPrice }
+    ];
+
+    fieldsToSet.forEach(field => {
+      const element = document.querySelector(field.selector);
+      if (element) {
+        element.value = field.value || '';
+      } else {
+        console.error(`Element not found: ${field.selector}`);
+      }
+    });
+
+    showAlert('Quote data imported successfully!', 'success');
+  } catch (error) {
+    console.error('Error importing quote:', error);
+    showAlert(error.message || 'Failed to import quote. Please check the code and try again.', 'error');
+  } finally {
+    importBtn.disabled = false;
+    importBtn.textContent = 'Import Quote from Code';
+  }
+});
+
+// Helper function to show alerts
+function showAlert(message, type) {
+  // Remove any existing alerts
+  const existingAlert = document.querySelector('.import-alert');
+  if (existingAlert) {
+    existingAlert.remove();
+  }
+
+  const alertDiv = document.createElement('div');
+  alertDiv.className = `import-alert alert-${type}`;
+  alertDiv.textContent = message;
+  
+  // Insert after the import container
+  const importContainer = document.querySelector('.import-quote-container');
+  importContainer.insertAdjacentElement('afterend', alertDiv);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    alertDiv.remove();
+  }, 5000);
+}
+
     // Session timer
     let secondsRemaining = 900;
 

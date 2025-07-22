@@ -480,42 +480,49 @@ app.post("/updateFormConfig", requireOrderAdminOTP, async (req, res) => {
     res.redirect("/formConfig?message=" + encodeURIComponent("Error updating form configurations"));
   }
 });
-// GET /initFormConfig - Initialize form configurations with defaults
-app.get("/initFormConfig", requireOrderAdminOTP, async (req, res) => {
+
+
+//haetaan quote ID:llä
+app.get("/get-quote/:quoteId", async (req, res) => {
   try {
-    const defaultConfigs = [
-      {
-        id: "ordererName",
-        fieldName: "ordererName",
-        title: "Orderer Name",
-        placeholder: "Name of the person making the order",
-        required: true
-      },
-      {
-        id: "ordererEmail",
-        fieldName: "ordererEmail",
-        title: "Orderer Email",
-        placeholder: "Email of the person making the order",
-        required: true
-      },
-      // Add all other fields with their defaults
-    ];
+    const quotesContainer = customerDatabase.container("Quotes");
+    const { resource: quote } = await quotesContainer.item(req.params.quoteId, req.params.quoteId).read();
+    
+    if (!quote) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Quote not found",
+        message: "No quote found with the provided code. Please check the code and try again."
+      });
+    }
 
-    await Promise.all(defaultConfigs.map(config => 
-      formConfigContainer.items.upsert(config)
-    ));
-
-    res.redirect("/formConfig?message=" + encodeURIComponent("Form configurations initialized with defaults"));
+    res.json({
+      success: true,
+      customerContactName: quote.QuoteCustomerName || '',
+      numUsers: quote.QuoteUserAmount || '',
+      currency: quote.QuoteCurrency || '',
+      customerPrice: quote.QuotePrice || ''
+    });
   } catch (err) {
-    console.error("Error initializing form configs:", err);
-    res.redirect("/formConfig?message=" + encodeURIComponent("Error initializing form configurations"));
+    console.error("Error fetching quote:", err);
+    if (err.code === 404) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Quote not found",
+        message: "No quote found with the provided code. Please check the code and try again."
+      });
+    }
+    res.status(500).json({ 
+      success: false,
+      error: "Server error",
+      message: "Failed to fetch quote. Please try again later."
+    });
   }
 });
 
 // Modify your /form route to include field configurations
 app.get("/form", requireAuth, async (req, res) => {
   try {
-    // Fetch tooltips
     const tooltipIds = [
       "ordererInfo",
       "partnerInfo",
@@ -562,32 +569,6 @@ app.get("/", (req, res) => {
   res.render("index");
 });
 
-// GET /form myös tooltipit haetaan dbstä
-app.get("/form", requireAuth, async (req, res) => {
-  try {
-    const tooltipIds = [
-      "ordererInfo",
-      "partnerInfo",
-      "customerInfo",
-      "subscriptionInfo"
-    ];
-
-    const tooltips = {};
-
-    for (const id of tooltipIds) {
-      const { resource } = await customerDatabase
-        .container("Tooltips")
-        .item(id, id)
-        .read();
-      tooltips[id] = resource?.text || "";
-    }
-
-    res.render("form", { tooltips }); // Pass tooltips to the form view
-  } catch (err) {
-    console.error("Error fetching tooltips:", err.message);
-    res.render("form", { tooltips: {} });
-  }
-});
 
 // GET /calculator
 app.get("/calculator", (req, res) => {
