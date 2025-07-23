@@ -2,30 +2,153 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Admin - Edit Variables</title>
+  <title>Admin - Configuration Editor</title>
   <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Keep your existing styles */
+  </style>
 </head>
 <body>
-    
-    <div class="titleDiv">
-        <h1>Edit Discount Variables</h1>
+  <div class="titleDiv">
+    <h1>System Configuration Editor</h1>
+    <% if (message) { %>
+      <div class="message"><%= message %></div>
+    <% } %>
+  </div>
+
+  <div class="container">
+    <div class="tab-container">
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="discounts">Discounts</button>
+        <button class="tab-button" data-tab="ppus">PPUs</button>
+        <button class="tab-button" data-tab="volume">Volume Pricing</button>
+        <button class="tab-button" data-tab="currencies">Currencies</button>
+      </div>
+
+      <!-- Discounts Tab -->
+        <div id="discounts" class="tab-content active">
+        <h2>Discount Settings</h2>
+        <form action="/admin/updateDiscounts" method="POST">
+            <div class="variable-grid">
+            <% if (discountRules.commitments) { %>
+                <% discountRules.commitments.forEach((commitment, index) => { %>
+                <div class="variable-card">
+                    <h3><%= commitment.name %></h3>
+                    <label>Discount Percentage</label>
+                    <input type="number" name="commitments[<%= commitment.key %>]" 
+                        value="<%= (commitment.value * 100).toFixed(2) %>" step="0.01" min="0" max="100">
+                </div>
+                <% }) %>
+            <% } %>
+
+            <div class="variable-card">
+                <h3>Current Subscriber Discount</h3>
+                <label>Additional Discount (%)</label>
+                <input type="number" name="currentSubscriber" 
+                    value="<%= (discountRules.currentSubscriber * 100).toFixed(2) %>" step="0.01" min="0" max="100">
+            </div>
+            </div>
+            <div class="button-group">
+            <button type="submit">Update Discounts</button>
+            </div>
+        </form>
+        </div>
+
+        <!-- PPUs Tab -->
+        <div id="ppus" class="tab-content">
+        <h2>Per-User Pricing (PPU)</h2>
+        <form action="/admin/updatePPUs" method="POST">
+            <div class="variable-grid">
+            <% Object.entries(ppus).forEach(([currency, values]) => { %>
+                <div class="variable-card">
+                <h3><%= currency %></h3>
+                <label>Standard Price</label>
+                <input type="number" name="ppus[<%= currency %>][standard]" 
+                        value="<%= values.standard.toFixed(2) %>" step="0.01" min="0">
+                
+                <% if (values.alternate) { %>
+                    <label>Alternate Price</label>
+                    <input type="number" name="ppus[<%= currency %>][alternate]" 
+                        value="<%= values.alternate.toFixed(2) %>" step="0.01" min="0">
+                <% } %>
+                </div>
+            <% }) %>
+            </div>
+            <div class="button-group">
+            <button type="submit">Update PPUs</button>
+            </div>
+        </form>
+        </div>
+
+        <!-- Volume Pricing Tab -->
+        <div id="volume" class="tab-content">
+        <h2>Volume Pricing Tiers</h2>
+        <form action="/admin/updateVolumePricing" method="POST">
+            <div class="variable-grid">
+            <% volumePricing.forEach((tier) => { %>
+                <div class="variable-card">
+                <h3><%= tier.userCount.toLocaleString() %> Users</h3>
+                <input type="hidden" name="tiers[<%= tier.id %>][id]" value="<%= tier.id %>">
+                <input type="hidden" name="tiers[<%= tier.id %>][userCount]" value="<%= tier.userCount %>">
+                
+                <label>Volume Discount %</label>
+                <input type="number" name="tiers[<%= tier.id %>][volumeDiscount]" 
+                        value="<%= (tier.volumeDiscount * 100).toFixed(2) %>" step="0.01" min="0" max="100">
+                
+                <% Object.entries(tier.subscriptions).forEach(([currency, price]) => { %>
+                    <label><%= currency %> Price</label>
+                    <input type="number" name="tiers[<%= tier.id %>][subscriptions][<%= currency %>]" 
+                        value="<%= price.toFixed(2) %>" step="0.01" min="0">
+                <% }) %>
+                </div>
+            <% }) %>
+            </div>
+            <div class="button-group">
+            <button type="submit">Update Volume Pricing</button>
+            </div>
+        </form>
+        </div>
+
+        <!-- Currencies Tab -->
+        <div id="currencies" class="tab-content">
+        <h2>Exchange Rates</h2>
+        <form action="/admin/updateCurrencies" method="POST">
+            <div class="variable-grid">
+            <% Object.entries(currencies).forEach(([currency, rate]) => { %>
+                <div class="variable-card">
+                <h3><%= currency %></h3>
+                <label>Exchange Rate (to base currency)</label>
+                <input type="number" name="rates[<%= currency %>]" 
+                        value="<%= rate.toFixed(6) %>" step="0.000001" min="0">
+                </div>
+            <% }) %>
+            </div>
+            <div class="button-group">
+            <button type="submit">Update Exchange Rates</button>
+            </div>
+        </form>
+        </div>
     </div>
 
-    <div class="container">
-        <form action="/admin/update" method="POST">
-        <% variables.forEach((variable, index) => { %>
-            <div class="variable">
-            <input type="hidden" name="id" value="<%= variable.id %>">
-            <input type="hidden" name="variableName" value="<%= variable.variableName %>">
-            
-            <label><%= variable.variableName %></label>
-            <input type="number" name="Amount" value="<%= variable.Amount %>" step="0.01">
-            </div>
-        <% }) %>
-        <div class="button-group">  
-                <a href="/" class="secondary-button">Return</a>
-                <button type="submit">Submit</button>
-        </div>
-</form>
+    <div class="button-group">
+      <a href="/" class="secondary-button">Return to Home</a>
+    </div>
+  </div>
+
+  <script>
+    // Tab switching functionality
+    document.querySelectorAll('.tab-button').forEach(button => {
+      button.addEventListener('click', () => {
+        // Remove active class from all buttons and tabs
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        
+        // Add active class to clicked button and corresponding tab
+        button.classList.add('active');
+        const tabId = button.getAttribute('data-tab');
+        document.getElementById(tabId).classList.add('active');
+      });
+    });
+  </script>
 </body>
 </html>

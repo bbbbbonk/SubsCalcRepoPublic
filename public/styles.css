@@ -463,6 +463,53 @@ textarea.show-error:invalid {
   border-radius: 4px;
 }
 
+    .tab-container {
+      margin-bottom: 20px;
+    }
+    .tab-buttons {
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .tab-button {
+      padding: 10px 20px;
+      background: #ffffff;
+      border: 1px solid #a02666;
+      color:#cc3180;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    .tab-button.active {
+      background: #ddd;
+      font-weight: bold;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .variable-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 15px;
+    }
+    .variable-card {
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .currency-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .volume-tier {
+      margin-bottom: 20px;
+      padding: 10px;
+      border: 1px solid #eee;
+    }
+
+
 /* Tablet styles (≤900px) */
 @media screen and (max-width: 900px) {
   body {

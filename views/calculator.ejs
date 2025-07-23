@@ -2,24 +2,40 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Calculation Result</title>
+  <title>Subscription Calculator</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <div class="calcDiv">
     <h1>Subscription Calculator</h1>
     <form action="/calculate" method="POST">
-
-      <label for="price">Price:</label>
-      <input type="number" name="price" required />
-
-      <label for="amount">Amount</label>
+      <label for="amount">Number of Subscribers:</label>
       <input type="number" name="amount" required />
 
-      <div class="button-group">  
+      <label for="currency">Currency:</label>
+      <select name="currency" required>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="SEK">SEK</option>
+      </select>
+
+      <label for="commitmentDiscount">Commitment Period:</label>
+      <select name="commitmentDiscount">
+        <option value="0">No Commitment</option>
+        <% commitmentOptions.forEach(opt => { %>
+          <option value="<%= opt.value %>"><%= opt.label %> - <%= opt.value %>%</option>
+        <% }) %>
+      </select>
+
+      <label>
+        <input type="checkbox" name="isCurrentSubscriber" />
+        Already a Subscriber? (<%= currentSubscriberDiscount %>% discount)
+      </label>
+
+      <div class="button-group">
         <a href="/" class="secondary-button">Return</a>
         <button type="submit">Submit</button>
-      
       </div>
     </form>
   </div>

@@ -219,17 +219,19 @@ if (useManagedIdentity) {
 }
 
 const calcDatabase = cosmosClient.database("CalculatorConfigDB");
-const calcContainer = calcDatabase.container("Variables");
+const discountContainer = calcDatabase.container("Discounts");
+const volumePricingContainer = calcDatabase.container("VolumePricing");
+const ppusContainer = calcDatabase.container("PPUs");
+const currenciesContainer = calcDatabase.container("ExchangeRate");
 
 const customerDatabase = cosmosClient.database("CustomerInfo");
 const customerContainer = customerDatabase.container("CustomerInfo");
 
 const adminConfigContainer=customerDatabase.container("adminConfig");
-
 const formConfigContainer = customerDatabase.container("FormConfig");
 
 // GET /initFormConfig - Initialize form configurations with defaults
-app.get("/initFormConfig", requireOrderAdminOTP, async (req, res) => {
+app.get("/initFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const defaultConfigs = [
       // Form title
@@ -428,7 +430,7 @@ app.get("/initFormConfig", requireOrderAdminOTP, async (req, res) => {
 });
 
 // GET /formConfig - Retrieve all form field configurations
-app.get("/formConfig", requireOrderAdminOTP, async (req, res) => {
+app.get("/formConfig", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const { resources: configs } = await formConfigContainer.items.query({
       query: "SELECT * FROM c"
@@ -454,7 +456,7 @@ app.get("/formConfig", requireOrderAdminOTP, async (req, res) => {
 });
 
 // POST /updateFormConfig - Update form field configurations
-app.post("/updateFormConfig", requireOrderAdminOTP, async (req, res) => {
+app.post("/updateFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const updates = [];
     
@@ -571,9 +573,35 @@ app.get("/", (req, res) => {
 
 
 // GET /calculator
-app.get("/calculator", (req, res) => {
-  res.render("calculator");
+app.get("/calculator", async (req, res) => {
+  try {
+    const { resource: discountDoc } = await discountContainer
+      .item("discount-rules", "rules") // item(id, partitionKey)
+      .read();
+
+    if (!discountDoc || !discountDoc.commitments) {
+      throw new Error("Discount document or commitments field not found");
+    }
+
+    const commitmentOptions = Object.entries(discountDoc.commitments).map(([key, value]) => ({
+      label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()), // "1_year" → "1 Year"
+      value: value * 100,
+      key: key
+    }));
+
+    const currentSubscriberDiscount = (discountDoc.currentSubscriber || 0) * 100;
+
+    res.render("calculator", {
+      commitmentOptions,
+      currentSubscriberDiscount
+    });
+  } catch (err) {
+    console.error("Failed to load discount options:", err.message);
+    res.status(500).send("Failed to load discount options");
+  }
 });
+
+
 
 //authentikointia loginille
 async function requireAuth(req, res, next) {
@@ -709,7 +737,7 @@ function requireOrderAdminOTP (req, res, next) {                                
 
 /// GET /orderAdmin
 // GET /orderAdmin
-app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
+app.get("/orderAdmin", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const searchTerm = req.query.search || "";
     const page = parseInt(req.query.page) || 1;
@@ -809,7 +837,7 @@ app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
 });
 
 //for updating tooltips to cosmos db
-app.post("/updateTooltips", requireOrderAdminOTP, async (req, res) => {
+app.post("/updateTooltips", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const container = customerDatabase.container("Tooltips");
     const updateOps = [
@@ -855,134 +883,150 @@ app.post("/updateEmail", async (req, res) => {
 });
 
 //GET /admin
-app.get("/admin", async (req, res) => {
+// GET /admin - Configuration editor
+app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    console.log("Attempting to fetch variables from Cosmos DB...");
-    
-    const querySpec = {
-      query: "SELECT c.id, c.variableName, c.Amount FROM c"
-    };
-    
-    console.log("Executing query:", querySpec.query);
-    
-    const { resources: variables, diagnostics } = await calcContainer.items
-      .query(querySpec)
-      .fetchAll();
-    
-    console.log("Query diagnostics:", diagnostics);
-    console.log("Retrieved variables:", JSON.stringify(variables, null, 2));
-    
-    if (!variables || variables.length === 0) {
-      console.warn("No variables found in the database");
-      return res.render("admin", {
-        variables: [],
-        message: "No variables found in the database"
-      });
+    // Fetch all required data in parallel
+    const [
+      discountRulesResponse,
+      ppusResponse,
+      volumePricingResponse,
+      currenciesResponse
+    ] = await Promise.all([
+      discountContainer.item("discount-rules", "rules").read(),
+      ppusContainer.items.query("SELECT * FROM c ORDER BY c.date DESC").fetchAll(),
+      volumePricingContainer.items.query("SELECT * FROM c ORDER BY c.userCount ASC").fetchAll(),
+      currenciesContainer.items.query("SELECT * FROM c").fetchAll()
+    ]);
+
+    // Process discount rules
+    const discountRules = discountRulesResponse.resource || {};
+    if (discountRules.commitments) {
+      discountRules.commitments = Object.entries(discountRules.commitments).map(([key, value]) => ({
+        key,
+        name: key.replace('_', ' '),
+        value
+      }));
     }
 
-    res.render("admin", { 
-      variables: variables,
-      message: null 
+    // Process PPUs (take the latest)
+    const ppus = ppusResponse.resources[0]?.ppu || {};
+
+    // Process volume pricing
+    const volumePricing = volumePricingResponse.resources || [];
+
+    // Process currencies (exchange rates)
+    const currencies = currenciesResponse.resources[0]?.rates || {};
+
+    res.render("admin", {
+      discountRules,
+      ppus,
+      volumePricing,
+      currencies,
+      message: req.query.message || null
     });
+
   } catch (err) {
-    console.error("Detailed error fetching variables:", {
-      message: err.message,
-      code: err.code,
-      stack: err.stack,
-      endpoint: endpoint,
-      database: "CalculatorConfigDB",
-      container: "Variables"
-    });
+    console.error("Error loading admin data:", err);
     res.status(500).render("admin", {
-      variables: [],
-      message: "Error loading variables - check server logs"
+      discountRules: {},
+      ppus: {},
+      volumePricing: [],
+      currencies: {},
+      message: "Error loading configuration data"
     });
   }
 });
 
 // POST /admin/update - save updated variables
-app.post("/admin/update", async (req, res) => {
+app.post("/admin/updateDiscounts", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    console.log("Received update request:", req.body);
-
-    // Handle both single and array inputs
-    const ids = Array.isArray(req.body.id) ? req.body.id : [req.body.id];
-    const variableNames = Array.isArray(req.body.variableName) ? req.body.variableName : [req.body.variableName];
-    const amounts = Array.isArray(req.body.Amount) ? req.body.Amount : [req.body.Amount];
-
-    // Validate input arrays
-    if (ids.length !== variableNames.length || ids.length !== amounts.length) {
-      throw new Error("Mismatched input array lengths");
-    }
-
-    const updatedVariables = [];
-
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      const variableName = variableNames[i];
-      const amount = parseFloat(amounts[i]); // Ensure numeric value
-
-      // Validate inputs
-      if (!id || !variableName || isNaN(amount)) {
-        console.warn(`Skipping invalid input at index ${i}:`, { id, variableName, amount });
-        continue;
-      }
-
-      try {
-        // Read the existing item using variableName as partitionKey
-        const { resource: item } = await calcContainer.item(id, variableName).read();
-
-        if (!item) {
-          throw new Error(`Item not found with id: ${id} and variableName: ${variableName}`);
-        }
-
-        // Update the item
-        item.Amount = amount;
-        item.value = amount; // Update both fields if needed
-
-        // Replace the item
-        await calcContainer.item(id, variableName).replace(item);
-        updatedVariables.push({ id, variableName, amount });
-
-        console.log(`Successfully updated item: ${id} (${variableName}) with amount: ${amount}`);
-      } catch (err) {
-        console.error(`Error updating item ${id} (${variableName}):`, err.message);
-        throw err; // Re-throw to catch in outer try-catch
-      }
-    }
-
-    // Fetch updated variables to show in response
-    const { resources: variables } = await calcContainer.items.query({
-      query: "SELECT c.id, c.variableName, c.Amount FROM c"
-    }).fetchAll();
-
-    res.render("admin", {
-      variables: variables,
-      message: `Successfully updated ${updatedVariables.length} variable(s)`
-    });
-
-  } catch (err) {
-    console.error("Failed to update variables:", {
-      error: err.message,
-      stack: err.stack,
-      requestBody: req.body
-    });
+    const { commitments, currentSubscriber } = req.body;
     
-    // Try to get current variables even if update failed
-    let variables = [];
-    try {
-      const result = await calcContainer.items.query({
-        query: "SELECT c.id, c.variableName, c.Amount FROM c"
-      }).fetchAll();
-      variables = result.resources;
-    } catch (fetchErr) {
-      console.error("Failed to fetch variables after update error:", fetchErr.message);
+    // Convert commitments from form data to object
+    const commitmentsObj = {};
+    for (const [key, value] of Object.entries(commitments)) {
+      commitmentsObj[key] = parseFloat(value) / 100;
     }
 
-    res.status(500).render("admin", {
-      variables: variables,
-      message: `Update failed: ${err.message}`
-    });
+    const update = {
+      id: "discount-rules",
+      rules: "rules", // partition key
+      commitments: commitmentsObj,
+      currentSubscriber: parseFloat(currentSubscriber) / 100
+    };
+
+    await discountContainer.items.upsert(update);
+    res.redirect("/admin?message=Discounts updated successfully");
+  } catch (err) {
+    console.error("Error updating discounts:", err);
+    res.redirect("/admin?message=Error updating discounts");
+  }
+});
+
+// POST /admin/updatePPUs
+app.post("/admin/updatePPUs", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const ppus = req.body.ppus;
+    const update = {
+      id: `ppu-${new Date().toISOString().split('T')[0]}`,
+      date: new Date().toISOString(),
+      ppu: ppus
+    };
+
+    await ppusContainer.items.create(update);
+    res.redirect("/admin?message=PPUs updated successfully");
+  } catch (err) {
+    console.error("Error updating PPUs:", err);
+    res.redirect("/admin?message=Error updating PPUs");
+  }
+});
+
+app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const tiers = req.body.tiers;
+    const updateOps = [];
+
+    for (const tierId in tiers) {
+      const tierData = tiers[tierId];
+      const update = {
+        id: tierData.id,
+        userCount: parseInt(tierData.userCount),
+        volumeDiscount: parseFloat(tierData.volumeDiscount) / 100,
+        subscriptions: {}
+      };
+
+      // Process each currency price
+      for (const currency in tierData.subscriptions) {
+        update.subscriptions[currency] = parseFloat(tierData.subscriptions[currency]);
+      }
+
+      updateOps.push(volumePricingContainer.items.upsert(update));
+    }
+
+    await Promise.all(updateOps);
+    res.redirect("/admin?message=Volume pricing updated successfully");
+  } catch (err) {
+    console.error("Error updating volume pricing:", err);
+    res.redirect("/admin?message=Error updating volume pricing");
+  }
+});
+
+// POST /admin/updateCurrencies
+app.post("/admin/updateCurrencies", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const rates = req.body.rates;
+    const update = {
+      id: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString(),
+      rates: rates
+    };
+
+    await currenciesContainer.items.upsert(update);
+    res.redirect("/admin?message=Exchange rates updated successfully");
+  } catch (err) {
+    console.error("Error updating exchange rates:", err);
+    res.redirect("/admin?message=Error updating exchange rates");
   }
 });
 
@@ -1132,28 +1176,81 @@ app.post("/deleteCustomer", async (req, res) => {
 
 // POST /calculate
 app.post("/calculate", async (req, res) => {
-  const { price, amount} = req.body;
+  const { amount, currency, commitmentDiscount, isCurrentSubscriber } = req.body;
+  const numSubscribers = Number(amount);
 
-  let multi = 0;
+  let finalPrice = 0;
+  let usedVolumePricing = false;
+  let ppuValue = 0;
+  let discountMultiplier = 1;
+
   try {
-    // id = "VAR", partitionKey = "Sale2" (change as needed)
-    const { resource: doc } = await calcContainer.item("Discount", "Commitment").read();
-    multi = doc?.Amount ?? 0;
-  } catch (err) {
-    console.warn("Failed to fetch discount from Cosmos DB:", err.message);
-  }
+    const { resource: discountDoc } = await discountContainer
+      .item("discount-rules", "rules")
+      .read();
 
-  // Calculate the multiplied amount
-  const multipliedAmount =Number(amount*price)- Number(amount*price) * multi/100;
+    const commitmentPercent = parseFloat(commitmentDiscount || 0) / 100;
+    const commitmentMultiplier = 1 - commitmentPercent;
 
-  // Render the result page with the calculation and submitted info
+    const subscriberMultiplier = isCurrentSubscriber === "on"
+      ? 1 - (discountDoc.currentSubscriber || 0)
+      : 1;
+
+    discountMultiplier = commitmentMultiplier * subscriberMultiplier;
+
+    if (numSubscribers > 1000) {
+      // Volume pricing (annual price already)
+      const { resources: tiers } = await volumePricingContainer.items
+        .query({
+          query: "SELECT * FROM c WHERE c.userCount >= @numUsers ORDER BY c.userCount ASC",
+          parameters: [{ name: "@numUsers", value: numSubscribers }]
+        })
+        .fetchAll();
+
+      if (tiers.length > 0) {
+        const selectedTier = tiers[0];
+        const volumeBasePrice = selectedTier.subscriptions[currency];
+
+        finalPrice = volumeBasePrice * discountMultiplier; // annual price after discount
+        usedVolumePricing = true;
+      }
+    }
+
+    if (!usedVolumePricing) {
+      // PPU fallback (monthly price)
+      const ppuContainer = calcDatabase.container("PPUs");
+      const { resources: ppuDocs } = await ppuContainer.items
+        .query({ query: "SELECT * FROM c ORDER BY c.date DESC" })
+        .fetchAll();
+
+      const latestPPU = ppuDocs[0];
+      if (!latestPPU?.ppu?.[currency]?.standard) {
+        throw new Error(`No PPU found for currency ${currency}`);
+      }
+
+      ppuValue = latestPPU.ppu[currency].standard;
+      const basePrice = numSubscribers * ppuValue;
+
+      finalPrice = basePrice * discountMultiplier; // monthly price after discount
+    }
+
+    // Pass these flags so the template can know if finalPrice is monthly or annual
     res.render("result", {
-    price,
-    amount,
-    multi,
-    multipliedAmount
-  });
+      price: ppuValue,
+      amount: numSubscribers,
+      currency,
+      multi: (1 - discountMultiplier) * 100,
+      multipliedAmount: finalPrice,
+      usedVolumePricing
+    });
+
+  } catch (err) {
+    console.error("Calculation error:", err.message);
+    res.status(500).send("Failed to calculate subscription price.");
+  }
 });
+
+
 
 
 // Start server
