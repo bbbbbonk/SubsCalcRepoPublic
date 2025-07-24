@@ -882,7 +882,6 @@ app.post("/updateEmail", async (req, res) => {
   }
 });
 
-//GET /admin
 // GET /admin - Configuration editor
 app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
@@ -896,7 +895,7 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       discountContainer.item("discount-rules", "rules").read(),
       ppusContainer.items.query("SELECT * FROM c ORDER BY c.date DESC").fetchAll(),
       volumePricingContainer.items.query("SELECT * FROM c ORDER BY c.userCount ASC").fetchAll(),
-      currenciesContainer.items.query("SELECT * FROM c").fetchAll()
+      currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll()
     ]);
 
     // Process discount rules
@@ -904,36 +903,90 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     if (discountRules.commitments) {
       discountRules.commitments = Object.entries(discountRules.commitments).map(([key, value]) => ({
         key,
-        name: key.replace('_', ' '),
-        value
+        name: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
+        value: parseFloat(value) || 0
       }));
     }
 
     // Process PPUs (take the latest)
     const ppus = ppusResponse.resources[0]?.ppu || {};
-
+    
+    // Ensure all standard/alternate values are numbers
+    for (const currency in ppus) {
+      if (ppus[currency]) {
+        ppus[currency].standard = Number(ppus[currency].standard) || 0;
+        if (ppus[currency].alternate) {
+          ppus[currency].alternate = Number(ppus[currency].alternate) || 0;
+        }
+      }
+    }
+    
     // Process volume pricing
     const volumePricing = volumePricingResponse.resources || [];
 
-    // Process currencies (exchange rates)
-    const currencies = currenciesResponse.resources[0]?.rates || {};
+    // Process currencies - GBP is the base currency but editable
+    const currenciesDoc = currenciesResponse.resources[0];
+    let currencies = {
+      GBP: 1.0 // Default base value
+    };
+
+    // If we have existing rates, use them
+    if (currenciesDoc?.rates) {
+      currencies = {
+        GBP: parseFloat(currenciesDoc.rates.GBP) || 1.0,
+        USD: parseFloat(currenciesDoc.rates.USD) || 1.3,
+        EUR: parseFloat(currenciesDoc.rates.EUR) || 1.15
+      };
+    } else {
+      // Default rates if none exist
+      currencies = {
+        GBP: 1.0,
+        USD: 1.3,
+        EUR: 1.15
+      };
+    }
+
+    // Calculate derived rates based on GBP
+    const derivedRates = {
+      GBP: currencies.GBP,
+      USD: currencies.USD / currencies.GBP, // Shows how many USD per GBP
+      EUR: currencies.EUR / currencies.GBP  // Shows how many EUR per GBP
+    };
 
     res.render("admin", {
-      discountRules,
-      ppus,
-      volumePricing,
-      currencies,
-      message: req.query.message || null
+      discountRules: discountRules || {
+        commitments: [],
+        currentSubscriber: 0
+      },
+      ppus: ppus || {},
+      volumePricing: volumePricing || [],
+      currencies: derivedRates, // Send derived rates to view
+      rawCurrencies: currencies, // Send raw values for calculations
+      message: req.query.message || null,
+      baseCurrency: 'GBP'
     });
 
   } catch (err) {
     console.error("Error loading admin data:", err);
     res.status(500).render("admin", {
-      discountRules: {},
+      discountRules: {
+        commitments: [],
+        currentSubscriber: 0
+      },
       ppus: {},
       volumePricing: [],
-      currencies: {},
-      message: "Error loading configuration data"
+      currencies: {
+        GBP: 1.0,
+        USD: 1.3,
+        EUR: 1.15
+      },
+      rawCurrencies: {
+        GBP: 1.0,
+        USD: 1.3,
+        EUR: 1.15
+      },
+      message: "Error loading configuration data",
+      baseCurrency: 'GBP'
     });
   }
 });
@@ -964,21 +1017,33 @@ app.post("/admin/updateDiscounts", /*requireOrderAdminOTP*/ async (req, res) => 
   }
 });
 
-// POST /admin/updatePPUs
+// POST /admin/updatePPUs - WITH ERROR HANDLING
 app.post("/admin/updatePPUs", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const ppus = req.body.ppus;
-    const update = {
-      id: `ppu-${new Date().toISOString().split('T')[0]}`,
+    const baseId = `ppu-${new Date().toISOString().split('T')[0]}`;
+    let update = {
+      id: baseId,
       date: new Date().toISOString(),
       ppu: ppus
     };
 
-    await ppusContainer.items.create(update);
+    try {
+      await ppusContainer.items.create(update);
+    } catch (createErr) {
+      if (createErr.code === 409) {
+        // Document exists, use upsert or create with unique ID
+        update.id = `${baseId}-${Date.now()}`;
+        await ppusContainer.items.create(update);
+      } else {
+        throw createErr;
+      }
+    }
+
     res.redirect("/admin?message=PPUs updated successfully");
   } catch (err) {
     console.error("Error updating PPUs:", err);
-    res.redirect("/admin?message=Error updating PPUs");
+    res.redirect("/admin?message=Error updating PPUs: " + err.message);
   }
 });
 
@@ -1016,17 +1081,96 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
 app.post("/admin/updateCurrencies", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const rates = req.body.rates;
-    const update = {
-      id: new Date().toISOString().split('T')[0],
-      date: new Date().toISOString(),
-      rates: rates
+    
+    // Convert string values to numbers and ensure GBP is always 1.0
+    const processedRates = {
+      GBP: 1.0, // Force GBP to be 1.0 as it's our base
+      USD: parseFloat(rates.USD) || 1.3,
+      EUR: parseFloat(rates.EUR) || 1.15
     };
+
+    // Get the latest document to update it
+    const { resources: existingDocs } = await currenciesContainer.items
+      .query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC")
+      .fetchAll();
+    
+    let update;
+    if (existingDocs.length > 0) {
+      // Update existing document
+      update = {
+        ...existingDocs[0],
+        rates: processedRates,
+        date: new Date().toISOString()
+      };
+    } else {
+      // Create new document if none exists
+      update = {
+        id: "exchange-rates",
+        date: new Date().toISOString(),
+        rates: processedRates
+      };
+    }
 
     await currenciesContainer.items.upsert(update);
     res.redirect("/admin?message=Exchange rates updated successfully");
   } catch (err) {
     console.error("Error updating exchange rates:", err);
     res.redirect("/admin?message=Error updating exchange rates");
+  }
+});
+
+app.post("/admin/addVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const { userCount, volumeDiscount, subscriptions } = req.body;
+    
+    // Process subscriptions to convert string values to numbers
+    const processedSubscriptions = {};
+    for (const [currency, price] of Object.entries(subscriptions)) {
+      processedSubscriptions[currency] = parseFloat(price);
+    }
+
+    const newTier = {
+      id: userCount.toString(),
+      userCount: parseInt(userCount),
+      volumeDiscount: parseFloat(volumeDiscount) / 100,
+      subscriptions: processedSubscriptions
+    };
+
+    await volumePricingContainer.items.create(newTier);
+    res.redirect("/admin?message=New volume pricing tier added successfully");
+  } catch (err) {
+    console.error("Error adding new volume tier:", err);
+    res.redirect("/admin?message=Error adding new volume pricing tier");
+  }
+});
+
+// Updated delete endpoint with better error handling
+app.post("/admin/deleteVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
+  const { tierId } = req.body;
+  
+  try {
+    // Attempt to delete
+    await volumePricingContainer.item(tierId, tierId).delete();
+    
+    // Get updated list
+    const { resources: updatedTiers } = await volumePricingContainer.items
+      .query("SELECT * FROM c ORDER BY c.userCount ASC")
+      .fetchAll();
+    
+    res.json({
+      success: true,
+      tiers: updatedTiers,
+      message: "Tier deleted successfully"
+    });
+    
+  } catch (err) {
+    console.error("Delete error:", err);
+    res.status(err.code === 404 ? 404 : 500).json({
+      success: false,
+      message: err.code === 404 ? 
+        "Tier not found (may already be deleted)" : 
+        "Error deleting tier"
+    });
   }
 });
 
@@ -1181,7 +1325,7 @@ app.post("/calculate", async (req, res) => {
 
   let finalPrice = 0;
   let usedVolumePricing = false;
-  let ppuValue = 0;
+  let ppuValue = Number(0);
   let discountMultiplier = 1;
 
   try {
@@ -1236,11 +1380,11 @@ app.post("/calculate", async (req, res) => {
 
     // Pass these flags so the template can know if finalPrice is monthly or annual
     res.render("result", {
-      price: ppuValue,
-      amount: numSubscribers,
+      price: Number(ppuValue), // Ensure this is a number
+      amount: Number(numSubscribers),
       currency,
-      multi: (1 - discountMultiplier) * 100,
-      multipliedAmount: finalPrice,
+      multi: Number((1 - discountMultiplier) * 100),
+      multipliedAmount: Number(finalPrice),
       usedVolumePricing
     });
 

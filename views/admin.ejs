@@ -5,7 +5,9 @@
   <title>Admin - Configuration Editor</title>
   <link rel="stylesheet" href="/styles.css" />
   <style>
-    /* Keep your existing styles */
+      button{
+        padding:10px;
+      }
   </style>
 </head>
 <body>
@@ -22,7 +24,6 @@
         <button class="tab-button active" data-tab="discounts">Discounts</button>
         <button class="tab-button" data-tab="ppus">PPUs</button>
         <button class="tab-button" data-tab="volume">Volume Pricing</button>
-        <button class="tab-button" data-tab="currencies">Currencies</button>
       </div>
 
       <!-- Discounts Tab -->
@@ -56,77 +57,74 @@
 
         <!-- PPUs Tab -->
         <div id="ppus" class="tab-content">
-        <h2>Per-User Pricing (PPU)</h2>
-        <form action="/admin/updatePPUs" method="POST">
+          <h2>Per-User Pricing (PPU)</h2>
+          <form action="/admin/updatePPUs" method="POST">
             <div class="variable-grid">
-            <% Object.entries(ppus).forEach(([currency, values]) => { %>
+              <% Object.entries(ppus).forEach(([currency, values]) => { %>
                 <div class="variable-card">
-                <h3><%= currency %></h3>
-                <label>Standard Price</label>
-                <input type="number" name="ppus[<%= currency %>][standard]" 
+                  <h3><%= currency %></h3>
+                  <label>Price</label>
+                  <input type="number" name="ppus[<%= currency %>][standard]" 
                         value="<%= values.standard.toFixed(2) %>" step="0.01" min="0">
-                
-                <% if (values.alternate) { %>
-                    <label>Alternate Price</label>
-                    <input type="number" name="ppus[<%= currency %>][alternate]" 
-                        value="<%= values.alternate.toFixed(2) %>" step="0.01" min="0">
-                <% } %>
                 </div>
-            <% }) %>
+              <% }) %>
             </div>
             <div class="button-group">
-            <button type="submit">Update PPUs</button>
+              <button type="submit">Update PPUs</button>
             </div>
-        </form>
+          </form>
         </div>
 
         <!-- Volume Pricing Tab -->
         <div id="volume" class="tab-content">
-        <h2>Volume Pricing Tiers</h2>
-        <form action="/admin/updateVolumePricing" method="POST">
+          <h2>Volume Pricing Tiers</h2>
+          <form action="/admin/updateVolumePricing" method="POST">
             <div class="variable-grid">
-            <% volumePricing.forEach((tier) => { %>
+              <% volumePricing.forEach((tier) => { %>
                 <div class="variable-card">
-                <h3><%= tier.userCount.toLocaleString() %> Users</h3>
-                <input type="hidden" name="tiers[<%= tier.id %>][id]" value="<%= tier.id %>">
-                <input type="hidden" name="tiers[<%= tier.id %>][userCount]" value="<%= tier.userCount %>">
-                
-                <label>Volume Discount %</label>
-                <input type="number" name="tiers[<%= tier.id %>][volumeDiscount]" 
+                  <h3><%= tier.userCount.toLocaleString() %> Users</h3>
+                  <input type="hidden" name="tiers[<%= tier.id %>][id]" value="<%= tier.id %>">
+                  <input type="hidden" name="tiers[<%= tier.id %>][userCount]" value="<%= tier.userCount %>">
+                  
+                  <label>Volume Discount %</label>
+                  <input type="number" name="tiers[<%= tier.id %>][volumeDiscount]" 
                         value="<%= (tier.volumeDiscount * 100).toFixed(2) %>" step="0.01" min="0" max="100">
-                
-                <% Object.entries(tier.subscriptions).forEach(([currency, price]) => { %>
+                  
+                  <% Object.entries(tier.subscriptions).forEach(([currency, price]) => { %>
                     <label><%= currency %> Price</label>
                     <input type="number" name="tiers[<%= tier.id %>][subscriptions][<%= currency %>]" 
-                        value="<%= price.toFixed(2) %>" step="0.01" min="0">
-                <% }) %>
+                      value="<%= typeof price === 'number' ? price.toFixed(2) : '0.00' %>" step="0.01" min="0">
+                  <% }) %>
+                  
+                  <button type="button" class="delete-tier" data-tier-id="<%= tier.id %>">Delete Tier</button>
                 </div>
-            <% }) %>
+              <% }) %>
             </div>
             <div class="button-group">
-            <button type="submit">Update Volume Pricing</button>
+              <button type="submit">Update Volume Pricing</button>
             </div>
-        </form>
-        </div>
+          </form>
 
-        <!-- Currencies Tab -->
-        <div id="currencies" class="tab-content">
-        <h2>Exchange Rates</h2>
-        <form action="/admin/updateCurrencies" method="POST">
-            <div class="variable-grid">
-            <% Object.entries(currencies).forEach(([currency, rate]) => { %>
-                <div class="variable-card">
-                <h3><%= currency %></h3>
-                <label>Exchange Rate (to base currency)</label>
-                <input type="number" name="rates[<%= currency %>]" 
-                        value="<%= rate.toFixed(6) %>" step="0.000001" min="0">
-                </div>
-            <% }) %>
+        <div class="add-tier-form">
+        <h3>Add New Pricing Tier</h3>
+        <form action="/admin/addVolumeTier" method="POST">
+          <div class="form-group">
+            <label>User Count</label>
+            <input type="number" name="userCount" required min="1">
+          </div>
+          <div class="form-group">
+            <label>Volume Discount (%)</label>
+            <input type="number" name="volumeDiscount" step="0.01" min="0" max="100" required>
+          </div>
+          <% Object.keys(currencies).forEach(currency => { %>
+            <div class="form-group">
+              <label><%= currency %> Price</label>
+              <input type="number" name="subscriptions[<%= currency %>]" step="0.01" min="0" required>
             </div>
-            <div class="button-group">
-            <button type="submit">Update Exchange Rates</button>
-            </div>
+          <% }) %>
+          <button type="submit">Add New Tier</button>
         </form>
+      </div>
         </div>
     </div>
 
@@ -149,6 +147,32 @@
         document.getElementById(tabId).classList.add('active');
       });
     });
+
+  document.querySelectorAll('.delete-tier').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const tierId = e.target.getAttribute('data-tier-id');
+      if (confirm('Are you sure you want to delete this pricing tier?')) {
+        try {
+          const response = await fetch('/admin/deleteVolumeTier', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ tierId })
+          });
+          
+          if (response.ok) {
+            window.location.reload(); // Refresh to show updated list
+          } else {
+            const error = await response.json();
+            alert(`Error deleting tier: ${error.message}`);
+          }
+        } catch (err) {
+          alert('Failed to delete tier. Please try again.');
+        }
+      }
+    });
+  });
   </script>
 </body>
 </html>
