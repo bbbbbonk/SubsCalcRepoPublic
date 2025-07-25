@@ -134,7 +134,7 @@
   </div>
 
   <script>
-    // Tab switching functionality
+     // Tab switching functionality
     document.querySelectorAll('.tab-button').forEach(button => {
       button.addEventListener('click', () => {
         // Remove active class from all buttons and tabs
@@ -148,31 +148,81 @@
       });
     });
 
-  document.querySelectorAll('.delete-tier').forEach(button => {
-    button.addEventListener('click', async (e) => {
-      const tierId = e.target.getAttribute('data-tier-id');
-      if (confirm('Are you sure you want to delete this pricing tier?')) {
-        try {
-          const response = await fetch('/admin/deleteVolumeTier', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ tierId })
-          });
-          
-          if (response.ok) {
-            window.location.reload(); // Refresh to show updated list
-          } else {
-            const error = await response.json();
-            alert(`Error deleting tier: ${error.message}`);
-          }
-        } catch (err) {
-          alert('Failed to delete tier. Please try again.');
+    // Function to calculate volume prices based on discount
+      function calculateVolumePrices(discountInput) {
+      const card = discountInput.closest('.variable-card');
+      const discount = parseFloat(discountInput.value) / 100;
+      const currencyInputs = card.querySelectorAll('input[type="number"]:not([name*="volumeDiscount"])');
+      
+      currencyInputs.forEach(input => {
+        if (!input.dataset.originalValue) {
+          // Store original value if not already stored
+          input.dataset.originalValue = input.value;
         }
-      }
+        
+        // Calculate discounted price (original * (1 - discount))
+        const originalPrice = parseFloat(input.dataset.originalValue);
+        const discountedPrice = originalPrice * (1 - discount);
+        
+        // Only update if the current value matches the previous calculation
+        // This prevents overwriting manual edits
+        const currentValue = parseFloat(input.value);
+        const expectedValue = originalPrice * (1 - parseFloat(input.dataset.lastDiscount || 0));
+        
+        if (Math.abs(currentValue - expectedValue) < 0.01 || !input.dataset.lastDiscount) {
+          input.value = discountedPrice.toFixed(2);
+        }
+        
+        // Store the current discount for next calculation
+        input.dataset.lastDiscount = discount;
+      });
+    }
+
+    // Set up event listeners for discount inputs
+    document.querySelectorAll('input[name*="volumeDiscount"]').forEach(input => {
+      // Calculate initial prices
+      calculateVolumePrices(input);
+      
+      // Set up change listener
+      input.addEventListener('change', function() {
+        calculateVolumePrices(this);
+      });
     });
-  });
+
+    // Set up event listeners for currency inputs to track manual edits
+    document.querySelectorAll('input[type="number"]:not([name*="volumeDiscount"])').forEach(input => {
+      input.addEventListener('change', function() {
+        // When manually edited, update the original value to this new value
+        this.dataset.originalValue = this.value;
+        this.dataset.lastDiscount = 0; // Reset discount tracking
+      });
+    });
+
+    document.querySelectorAll('.delete-tier').forEach(button => {
+      button.addEventListener('click', async (e) => {
+        const tierId = e.target.getAttribute('data-tier-id');
+        if (confirm('Are you sure you want to delete this pricing tier?')) {
+          try {
+            const response = await fetch('/admin/deleteVolumeTier', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ tierId })
+            });
+            
+            if (response.ok) {
+              window.location.reload(); // Refresh to show updated list
+            } else {
+              const error = await response.json();
+              alert(`Error deleting tier: ${error.message}`);
+            }
+          } catch (err) {
+            alert('Failed to delete tier. Please try again.');
+          }
+        }
+      });
+    });
   </script>
 </body>
 </html>
