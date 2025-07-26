@@ -223,6 +223,7 @@ const discountContainer = calcDatabase.container("Discounts");
 const volumePricingContainer = calcDatabase.container("VolumePricing");
 const ppusContainer = calcDatabase.container("PPUs");
 const currenciesContainer = calcDatabase.container("ExchangeRate");
+const basePricesContainer = calcDatabase.container("BasePrices");
 
 const customerDatabase = cosmosClient.database("CustomerInfo");
 const customerContainer = customerDatabase.container("CustomerInfo");
@@ -890,12 +891,14 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       discountRulesResponse,
       ppusResponse,
       volumePricingResponse,
-      currenciesResponse
+      currenciesResponse,
+      basePricesResponse
     ] = await Promise.all([
       discountContainer.item("discount-rules", "rules").read(),
       ppusContainer.items.query("SELECT * FROM c ORDER BY c.date DESC").fetchAll(),
       volumePricingContainer.items.query("SELECT * FROM c ORDER BY c.userCount ASC").fetchAll(),
-      currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll()
+      currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll(),
+      basePricesContainer.item("BasePrices", "BasePrices").read().catch(() => ({ resource: null }))
     ]);
 
     // Process discount rules
@@ -911,26 +914,42 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     // Process PPUs (take the latest)
     const ppus = ppusResponse.resources[0]?.ppu || {};
     
-    // Ensure all standard/alternate values are numbers
-    for (const currency in ppus) {
-      if (ppus[currency]) {
-        ppus[currency].standard = Number(ppus[currency].standard) || 0;
-        if (ppus[currency].alternate) {
-          ppus[currency].alternate = Number(ppus[currency].alternate) || 0;
-        }
-      }
-    }
-    
     // Process volume pricing
-    const volumePricing = volumePricingResponse.resources || [];
+    const volumePricingRaw = volumePricingResponse.resources || [];
+    const volumePricing = volumePricingRaw.filter(tier => 
+      tier && 
+      typeof tier.userCount === 'number' && 
+      tier.userCount > 0 &&
+      tier.id
+    ).map(tier => ({
+      ...tier,
+      userCount: Number(tier.userCount) || 0,
+      volumeDiscount: Number(tier.volumeDiscount) || 0,
+      subscriptions: tier.subscriptions || {}
+    }));
 
-    // Process currencies - GBP is the base currency but editable
-    const currenciesDoc = currenciesResponse.resources[0];
-    let currencies = {
-      GBP: 1.0 // Default base value
+    // Process base prices
+    const basePricesDoc = basePricesResponse.resource;
+    let basePrices = {
+      id: "BasePrices",
+      userCount: "BasePrices",
+      basePrices: {
+        GBP: 33,
+        EUR: 34,
+        USD: 36
+      }
     };
 
-    // If we have existing rates, use them
+    if (basePricesDoc) {
+      basePrices = basePricesDoc;
+    }
+
+    // Process currencies
+    const currenciesDoc = currenciesResponse.resources[0];
+    let currencies = {
+      GBP: 1.0
+    };
+
     if (currenciesDoc?.rates) {
       currencies = {
         GBP: parseFloat(currenciesDoc.rates.GBP) || 1.0,
@@ -938,7 +957,6 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
         EUR: parseFloat(currenciesDoc.rates.EUR) || 1.15
       };
     } else {
-      // Default rates if none exist
       currencies = {
         GBP: 1.0,
         USD: 1.3,
@@ -949,8 +967,8 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     // Calculate derived rates based on GBP
     const derivedRates = {
       GBP: currencies.GBP,
-      USD: currencies.USD / currencies.GBP, // Shows how many USD per GBP
-      EUR: currencies.EUR / currencies.GBP  // Shows how many EUR per GBP
+      USD: currencies.USD / currencies.GBP,
+      EUR: currencies.EUR / currencies.GBP
     };
 
     res.render("admin", {
@@ -960,9 +978,10 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       },
       ppus: ppus || {},
       volumePricing: volumePricing || [],
-      currencies: derivedRates, // Send derived rates to view
-      rawCurrencies: currencies, // Send raw values for calculations
-      message: req.query.message || null,
+      basePrices: basePrices,
+      currencies: derivedRates,
+      rawCurrencies: currencies,
+      message: req.query.message || null, // This fixes the message error
       baseCurrency: 'GBP'
     });
 
@@ -975,6 +994,15 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       },
       ppus: {},
       volumePricing: [],
+      basePrices: {
+        id: "BasePrices",
+        userCount: "BasePrices",
+        basePrices: {
+          GBP: 33,
+          EUR: 34,
+          USD: 36
+        }
+      },
       currencies: {
         GBP: 1.0,
         USD: 1.3,
@@ -991,79 +1019,103 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
   }
 });
 
-// POST /admin/update - save updated variables
-app.post("/admin/updateDiscounts", /*requireOrderAdminOTP*/ async (req, res) => {
+// POST /admin/updateBasePrices
+app.post("/admin/updateBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    const { commitments, currentSubscriber } = req.body;
+    const basePricesInput = req.body.basePrices;
     
-    // Convert commitments from form data to object
-    const commitmentsObj = {};
-    for (const [key, value] of Object.entries(commitments)) {
-      commitmentsObj[key] = parseFloat(value) / 100;
+    // Convert string values to numbers
+    const processedBasePrices = {};
+    for (const [currency, price] of Object.entries(basePricesInput)) {
+      processedBasePrices[currency] = parseFloat(price) || 0;
     }
 
+    // First read the existing document to maintain all fields
+    const { resource: existingDoc } = await basePricesContainer
+      .item("BasePrices", "BasePrices")
+      .read()
+      .catch(() => ({ resource: null }));
+
     const update = {
-      id: "discount-rules",
-      rules: "rules", // partition key
-      commitments: commitmentsObj,
-      currentSubscriber: parseFloat(currentSubscriber) / 100
+      id: "BasePrices",
+      userCount: "BasePrices", // Partition key
+      basePrices: processedBasePrices,
+      _rid: existingDoc?._rid || "dJ93ALVtFIdDAQAAAAAAAA==",
+      _self: existingDoc?._self || "dbs/dJ93AA==/colls/dJ93ALVtFIc=/docs/dJ93ALVtFIdDAQAAAAAAAA==/",
+      _etag: existingDoc?._etag || `"${Date.now().toString(16)}-0000-0c00-0000-${Date.now().toString(16)}0000"`,
+      _attachments: existingDoc?._attachments || "attachments/",
+      _ts: existingDoc?._ts || Math.floor(Date.now() / 1000)
     };
 
-    await discountContainer.items.upsert(update);
-    res.redirect("/admin?message=Discounts updated successfully");
+    await basePricesContainer.items.upsert(update);
+    res.redirect("/admin?message=Base prices updated successfully");
   } catch (err) {
-    console.error("Error updating discounts:", err);
-    res.redirect("/admin?message=Error updating discounts");
+    console.error("Error updating base prices:", err);
+    res.redirect("/admin?message=Error updating base prices");
   }
 });
 
-// POST /admin/updatePPUs - WITH ERROR HANDLING
-app.post("/admin/updatePPUs", /*requireOrderAdminOTP*/ async (req, res) => {
+// GET /initBasePrices
+app.get("/initBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    const ppus = req.body.ppus;
-    const baseId = `ppu-${new Date().toISOString().split('T')[0]}`;
-    let update = {
-      id: baseId,
-      date: new Date().toISOString(),
-      ppu: ppus
+    const defaultBasePrices = {
+      id: "BasePrices",
+      userCount: "BasePrices", // Partition key
+      basePrices: {
+        GBP: 33,
+        EUR: 34,
+        USD: 36
+      },
+      _rid: "dJ93ALVtFIdDAQAAAAAAAA==",
+      _self: "dbs/dJ93AA==/colls/dJ93ALVtFIc=/docs/dJ93ALVtFIdDAQAAAAAAAA==/",
+      _etag: "\"04007dd7-0000-0c00-0000-000000000000\"",
+      _attachments: "attachments/",
+      _ts: Math.floor(Date.now() / 1000)
     };
 
-    try {
-      await ppusContainer.items.create(update);
-    } catch (createErr) {
-      if (createErr.code === 409) {
-        // Document exists, use upsert or create with unique ID
-        update.id = `${baseId}-${Date.now()}`;
-        await ppusContainer.items.create(update);
-      } else {
-        throw createErr;
-      }
-    }
-
-    res.redirect("/admin?message=PPUs updated successfully");
+    await basePricesContainer.items.upsert(defaultBasePrices);
+    res.redirect("/admin?message=" + encodeURIComponent("Base prices initialized successfully"));
   } catch (err) {
-    console.error("Error updating PPUs:", err);
-    res.redirect("/admin?message=Error updating PPUs: " + err.message);
+    console.error("Error initializing base prices:", err);
+    res.redirect("/admin?message=" + encodeURIComponent("Error initializing base prices: " + err.message));
   }
 });
 
 app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const tiers = req.body.tiers;
+    
+    // Fetch current base prices
+    const { resource: basePricesDoc } = await basePricesContainer
+      .item("BasePrices", "BasePrices")
+      .read()
+      .catch(() => ({ resource: null }));
+    
+    const basePrices = basePricesDoc?.basePrices || {
+      GBP: 33,
+      EUR: 34,
+      USD: 36
+    };
+
     const updateOps = [];
 
     for (const tierId in tiers) {
       const tierData = tiers[tierId];
+      const userCount = parseInt(tierData.userCount);
+      const volumeDiscount = parseFloat(tierData.volumeDiscount) / 100; // Convert from percentage to decimal
+      
       const update = {
         id: tierData.id,
-        userCount: parseInt(tierData.userCount),
-        volumeDiscount: parseFloat(tierData.volumeDiscount) / 100,
+        userCount: userCount,
+        volumeDiscount: volumeDiscount, // Store as decimal
         subscriptions: {}
       };
 
-      // Process each currency price
-      for (const currency in tierData.subscriptions) {
-        update.subscriptions[currency] = parseFloat(tierData.subscriptions[currency]);
+      // CORRECTED FORMULA: (base price × user count) × (1 - volume discount)
+      for (const currency in basePrices) {
+        const basePrice = basePrices[currency];
+        const finalPrice = (basePrice * userCount) * (1 - volumeDiscount);
+        update.subscriptions[currency] = parseFloat(finalPrice.toFixed(2));
       }
 
       updateOps.push(volumePricingContainer.items.upsert(update));
@@ -1074,6 +1126,204 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
   } catch (err) {
     console.error("Error updating volume pricing:", err);
     res.redirect("/admin?message=Error updating volume pricing");
+  }
+});
+
+
+// POST /admin/update - save updated variables
+app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const tiers = req.body.tiers;
+    
+    // Fetch current base prices
+    const { resource: basePricesDoc } = await basePricesContainer
+      .item("BasePrices", "BasePrices")
+      .read()
+      .catch(() => ({ resource: null }));
+    
+    const basePrices = basePricesDoc?.basePrices || {
+      GBP: 33,
+      EUR: 34,
+      USD: 36
+    };
+
+    const updateOps = [];
+
+    for (const tierId in tiers) {
+      const tierData = tiers[tierId];
+      const userCount = parseInt(tierData.userCount);
+      const volumeDiscount = parseFloat(tierData.volumeDiscount) / 100;
+      
+      const update = {
+        id: tierData.id,
+        userCount: userCount,
+        volumeDiscount: volumeDiscount,
+        subscriptions: {}
+      };
+
+      // Calculate final prices using the formula: (base price * user count) * volume discount
+      for (const currency in basePrices) {
+        const basePrice = basePrices[currency];
+        const finalPrice = (basePrice * userCount) * volumeDiscount;
+        update.subscriptions[currency] = parseFloat(finalPrice.toFixed(2));
+      }
+
+      updateOps.push(volumePricingContainer.items.upsert(update));
+    }
+
+    await Promise.all(updateOps);
+    res.redirect("/admin?message=Volume pricing updated successfully");
+  } catch (err) {
+    console.error("Error updating volume pricing:", err);
+    res.redirect("/admin?message=Error updating volume pricing");
+  }
+});
+
+// POST /admin/updatePPUs - WITH ERROR HANDLING
+app.post("/admin/updateBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const basePrices = req.body.basePrices;
+    
+    // Convert string values to numbers
+    const processedBasePrices = {};
+    for (const [currency, price] of Object.entries(basePrices)) {
+      processedBasePrices[currency] = parseFloat(price) || 0;
+    }
+
+    const update = {
+      id: "BasePrices",
+      basePrices: processedBasePrices,
+      _rid: "dJ93ALVtFIdAAQAAAAAAAA==",
+      _self: "dbs/dJ93AA==/colls/dJ93ALVtFIc=/docs/dJ93ALVtFIdAAQAAAAAAAA==/",
+      _etag: `"${Date.now().toString(16)}-0000-0c00-0000-${Date.now().toString(16)}0000"`,
+      _attachments: "attachments/",
+      _ts: Math.floor(Date.now() / 1000)
+    };
+
+    await basePricesContainer.items.upsert(update);
+    res.redirect("/admin?message=Base prices updated successfully");
+  } catch (err) {
+    console.error("Error updating base prices:", err);
+    res.redirect("/admin?message=Error updating base prices");
+  }
+});
+
+// Updated volume pricing update endpoint
+app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const tiers = req.body.tiers;
+    
+    // Fetch current base prices
+    const { resource: basePricesDoc } = await basePricesContainer
+      .item("BasePrices", "BasePrices")
+      .read()
+      .catch(() => ({ resource: null }));
+    
+    const basePrices = basePricesDoc?.basePrices || {
+      GBP: 33,
+      EUR: 34,
+      USD: 36
+    };
+
+    const updateOps = [];
+
+    for (const tierId in tiers) {
+      const tierData = tiers[tierId];
+      const userCount = parseInt(tierData.userCount);
+      const volumeDiscount = parseFloat(tierData.volumeDiscount) / 100;
+      
+      const update = {
+        id: tierData.id,
+        userCount: userCount,
+        volumeDiscount: volumeDiscount,
+        subscriptions: {}
+      };
+
+      // Calculate final prices using the formula: (base price * user count) * volume discount
+      for (const currency in basePrices) {
+        const basePrice = basePrices[currency];
+        const finalPrice = (basePrice * userCount) * volumeDiscount;
+        update.subscriptions[currency] = parseFloat(finalPrice.toFixed(2));
+      }
+
+      updateOps.push(volumePricingContainer.items.upsert(update));
+    }
+
+    await Promise.all(updateOps);
+    res.redirect("/admin?message=Volume pricing updated successfully");
+  } catch (err) {
+    console.error("Error updating volume pricing:", err);
+    res.redirect("/admin?message=Error updating volume pricing");
+  }
+});
+
+app.post("/admin/addVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const { userCount, volumeDiscount } = req.body;
+    
+    // Fetch current base prices
+    const { resource: basePricesDoc } = await basePricesContainer
+      .item("BasePrices", "BasePrices")
+      .read()
+      .catch(() => ({ resource: null }));
+    
+    const basePrices = basePricesDoc?.basePrices || {
+      GBP: 33,
+      EUR: 34,
+      USD: 36
+    };
+
+    const userCountInt = parseInt(userCount);
+    const volumeDiscountDecimal = parseFloat(volumeDiscount) / 100; // Convert from percentage to decimal
+    
+    // CORRECTED FORMULA: (base price × user count) × (1 - volume discount)
+    const processedSubscriptions = {};
+    for (const [currency, basePrice] of Object.entries(basePrices)) {
+      const finalPrice = (basePrice * userCountInt) * (1 - volumeDiscountDecimal);
+      processedSubscriptions[currency] = parseFloat(finalPrice.toFixed(2));
+    }
+
+    const newTier = {
+      id: userCount.toString(),
+      userCount: userCountInt,
+      volumeDiscount: volumeDiscountDecimal, // Store as decimal
+      subscriptions: processedSubscriptions,
+      _rid: `dJ93ALVtFIc${userCount}AQAAAAAAAAA==`,
+      _self: `dbs/dJ93AA==/colls/dJ93ALVtFIc=/docs/dJ93ALVtFIc${userCount}AQAAAAAAAAA==/`,
+      _etag: `"${Date.now().toString(16)}-0000-0c00-0000-${Date.now().toString(16)}0000"`,
+      _attachments: "attachments/",
+      _ts: Math.floor(Date.now() / 1000)
+    };
+
+    await volumePricingContainer.items.create(newTier);
+    res.redirect("/admin?message=New volume pricing tier added successfully");
+  } catch (err) {
+    console.error("Error adding new volume tier:", err);
+    res.redirect("/admin?message=Error adding new volume pricing tier");
+  }
+});
+
+app.get("/initBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const defaultBasePrices = {
+      id: "BasePrices",
+      basePrices: {
+        GBP: 33,
+        EUR: 34,
+        USD: 36
+      },
+      _rid: "dJ93ALVtFIdAAQAAAAAAAA==",
+      _self: "dbs/dJ93AA==/colls/dJ93ALVtFIc=/docs/dJ93ALVtFIdAAQAAAAAAAA==/",
+      _etag: "\"04003bd6-0000-0c00-0000-688506b90000\"",
+      _attachments: "attachments/",
+      _ts: 1753548473
+    };
+
+    await basePricesContainer.items.upsert(defaultBasePrices);
+    res.redirect("/admin?message=" + encodeURIComponent("Base prices initialized successfully"));
+  } catch (err) {
+    console.error("Error initializing base prices:", err);
+    res.redirect("/admin?message=" + encodeURIComponent("Error initializing base prices: " + err.message));
   }
 });
 
@@ -1143,14 +1393,55 @@ app.post("/admin/addVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
     res.redirect("/admin?message=Error adding new volume pricing tier");
   }
 });
-
-// Updated delete endpoint with better error handling
+// Add this temporary endpoint to debug your data structure
+app.get("/debug/volumePricing", async (req, res) => {
+  try {
+    const { resources: tiers } = await volumePricingContainer.items
+      .query("SELECT * FROM c")
+      .fetchAll();
+    
+    console.log("Volume pricing tiers:", JSON.stringify(tiers, null, 2));
+    
+    res.json({
+      message: "Check console for tier details",
+      tierCount: tiers.length,
+      firstTier: tiers[0] || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// Alternative approach: Read first, then delete with exact partition key
+// Updated delete endpoint with comprehensive error handling
 app.post("/admin/deleteVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
   const { tierId } = req.body;
   
+  console.log("Delete request received for tier:", tierId);
+  
+  if (!tierId) {
+    return res.status(400).json({
+      success: false,
+      message: "No tier ID provided"
+    });
+  }
+  
   try {
-    // Attempt to delete
-    await volumePricingContainer.item(tierId, tierId).delete();
+    // Convert tierId to number for partition key
+    const userCountPartitionKey = parseInt(tierId);
+    
+    if (isNaN(userCountPartitionKey)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid tier ID format"
+      });
+    }
+    
+    console.log("Attempting to delete tier with id:", tierId, "partition key:", userCountPartitionKey);
+    
+    // Try to delete the item
+    await volumePricingContainer.item(tierId, userCountPartitionKey).delete();
+    
+    console.log("Successfully deleted tier:", tierId);
     
     // Get updated list
     const { resources: updatedTiers } = await volumePricingContainer.items
@@ -1164,13 +1455,24 @@ app.post("/admin/deleteVolumeTier", /*requireOrderAdminOTP*/ async (req, res) =>
     });
     
   } catch (err) {
-    console.error("Delete error:", err);
-    res.status(err.code === 404 ? 404 : 500).json({
-      success: false,
-      message: err.code === 404 ? 
-        "Tier not found (may already be deleted)" : 
-        "Error deleting tier"
+    console.error("Delete error details:", {
+      message: err.message,
+      code: err.code,
+      statusCode: err.statusCode,
+      tierId: tierId
     });
+    
+    if (err.code === 404) {
+      res.status(404).json({
+        success: false,
+        message: "Tier not found - it may have already been deleted"
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: `Error deleting tier: ${err.message}`
+      });
+    }
   }
 });
 
