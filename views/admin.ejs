@@ -8,6 +8,22 @@
       button{
         padding:10px;
       }
+      .calculated-price {
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        padding: 8px;
+        margin: 5px 0;
+        border-radius: 4px;
+        font-weight: bold;
+        color: #333;
+      }
+      .base-price-info {
+        background-color: #e7f3ff;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        border-left: 4px solid #0066cc;
+      }
   </style>
 </head>
 <body>
@@ -22,12 +38,13 @@
     <div class="tab-container">
       <div class="tab-buttons">
         <button class="tab-button active" data-tab="discounts">Discounts</button>
+        <button class="tab-button" data-tab="baseprices">Base Prices</button>
         <button class="tab-button" data-tab="ppus">PPUs</button>
         <button class="tab-button" data-tab="volume">Volume Pricing</button>
       </div>
 
       <!-- Discounts Tab -->
-        <div id="discounts" class="tab-content active">
+      <div id="discounts" class="tab-content active">
         <h2>Discount Settings</h2>
         <form action="/admin/updateDiscounts" method="POST">
             <div class="variable-grid">
@@ -53,79 +70,149 @@
             <button type="submit">Update Discounts</button>
             </div>
         </form>
-        </div>
+      </div>
 
-        <!-- PPUs Tab -->
-        <div id="ppus" class="tab-content">
-          <h2>Per-User Pricing (PPU)</h2>
-          <form action="/admin/updatePPUs" method="POST">
-            <div class="variable-grid">
-              <% Object.entries(ppus).forEach(([currency, values]) => { %>
+      <!-- Base Prices Tab -->
+      <div id="baseprices" class="tab-content">
+        <h2>Base Prices (Per User)</h2>
+        <div class="base-price-info">
+          <strong>Note:</strong> These base prices are used to calculate volume pricing using the formula: 
+          <code>Final Price = (Base Price × User Count) × Volume Discount</code>
+        </div>
+        <form action="/admin/updateBasePrices" method="POST">
+          <div class="variable-grid">
+            <% if (basePrices && basePrices.basePrices) { %>
+              <% Object.entries(basePrices.basePrices).forEach(([currency, price]) => { %>
                 <div class="variable-card">
                   <h3><%= currency %></h3>
-                  <label>Price</label>
-                  <input type="number" name="ppus[<%= currency %>][standard]" 
-                        value="<%= values.standard.toFixed(2) %>" step="0.01" min="0">
+                  <label>Base Price per User</label>
+                  <input type="number" name="basePrices[<%= currency %>]" 
+                        value="<%= typeof price === 'number' ? price.toFixed(2) : '0.00' %>" 
+                        step="0.01" min="0">
                 </div>
               <% }) %>
-            </div>
-            <div class="button-group">
-              <button type="submit">Update PPUs</button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Volume Pricing Tab -->
-        <div id="volume" class="tab-content">
-          <h2>Volume Pricing Tiers</h2>
-          <form action="/admin/updateVolumePricing" method="POST">
-            <div class="variable-grid">
-              <% volumePricing.forEach((tier) => { %>
-                <div class="variable-card">
-                  <h3><%= tier.userCount.toLocaleString() %> Users</h3>
-                  <input type="hidden" name="tiers[<%= tier.id %>][id]" value="<%= tier.id %>">
-                  <input type="hidden" name="tiers[<%= tier.id %>][userCount]" value="<%= tier.userCount %>">
-                  
-                  <label>Volume Discount %</label>
-                  <input type="number" name="tiers[<%= tier.id %>][volumeDiscount]" 
-                        value="<%= (tier.volumeDiscount * 100).toFixed(2) %>" step="0.01" min="0" max="100">
-                  
-                  <% Object.entries(tier.subscriptions).forEach(([currency, price]) => { %>
-                    <label><%= currency %> Price</label>
-                    <input type="number" name="tiers[<%= tier.id %>][subscriptions][<%= currency %>]" 
-                      value="<%= typeof price === 'number' ? price.toFixed(2) : '0.00' %>" step="0.01" min="0">
-                  <% }) %>
-                  
-                  <button type="button" class="delete-tier" data-tier-id="<%= tier.id %>">Delete Tier</button>
-                </div>
-              <% }) %>
-            </div>
-            <div class="button-group">
-              <button type="submit">Update Volume Pricing</button>
-            </div>
-          </form>
-
-        <div class="add-tier-form">
-        <h3>Add New Pricing Tier</h3>
-        <form action="/admin/addVolumeTier" method="POST">
-          <div class="form-group">
-            <label>User Count</label>
-            <input type="number" name="userCount" required min="1">
+            <% } else { %>
+              <p>No base prices configured. Please initialize base prices.</p>
+            <% } %>
           </div>
-          <div class="form-group">
-            <label>Volume Discount (%)</label>
-            <input type="number" name="volumeDiscount" step="0.01" min="0" max="100" required>
+          <div class="button-group">
+            <button type="submit">Update Base Prices</button>
           </div>
-          <% Object.keys(currencies).forEach(currency => { %>
-            <div class="form-group">
-              <label><%= currency %> Price</label>
-              <input type="number" name="subscriptions[<%= currency %>]" step="0.01" min="0" required>
-            </div>
-          <% }) %>
-          <button type="submit">Add New Tier</button>
         </form>
       </div>
+      
+
+      <!-- PPUs Tab -->
+      <div id="ppus" class="tab-content">
+        <h2>Per-User Pricing (PPU)</h2>
+        <form action="/admin/updatePPUs" method="POST">
+          <div class="variable-grid">
+            <% Object.entries(ppus).forEach(([currency, values]) => { %>
+              <div class="variable-card">
+                <h3><%= currency %></h3>
+                <label>Price</label>
+                <input type="number" name="ppus[<%= currency %>][standard]" 
+                      value="<%= values.standard.toFixed(2) %>" step="0.01" min="0">
+              </div>
+            <% }) %>
+          </div>
+          <div class="button-group">
+            <button type="submit">Update PPUs</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Volume Pricing Tab -->
+      <div id="volume" class="tab-content">
+        <h2>Volume Pricing Tiers</h2>
+        <div class="base-price-info">
+          <strong>Formula:</strong> Final Price = (Base Price × User Count) × Volume Discount<br>
+          <strong>Current Base Prices:</strong> 
+          <% if (basePrices && basePrices.basePrices) { %>
+            <% Object.entries(basePrices.basePrices).forEach(([currency, price]) => { %>
+              <%= currency %>: <%= typeof price === 'number' ? price.toFixed(2) : '0.00' %>&nbsp;&nbsp;
+            <% }) %>
+          <% } else { %>
+            Not configured
+          <% } %>
         </div>
+        
+        <form action="/admin/updateVolumePricing" method="POST">
+          <div class="variable-grid">
+            <% volumePricing.forEach((tier) => { %>
+              <% if (tier && typeof tier.userCount !== 'undefined' && tier.userCount !== null) { %>
+              <div class="variable-card" data-tier-id="<%= tier.id || '' %>">
+                <h3><%= Number(tier.userCount).toLocaleString() %> Users</h3>
+                <input type="hidden" name="tiers[<%= tier.id || '' %>][id]" value="<%= tier.id || '' %>">
+                <input type="hidden" name="tiers[<%= tier.id || '' %>][userCount]" value="<%= tier.userCount || 0 %>">
+                
+                <label>Volume Discount %</label>
+                <input type="number" 
+                       name="tiers[<%= tier.id || '' %>][volumeDiscount]" 
+                       class="volume-discount-input"
+                       data-user-count="<%= tier.userCount || 0 %>"
+                       value="<%= ((tier.volumeDiscount || 0) * 100).toFixed(2) %>" 
+                       step="0.01" min="0" max="100">
+                
+                <div class="calculated-prices">
+                  <h4>Calculated Prices:</h4>
+                  <% if (tier.subscriptions && typeof tier.subscriptions === 'object') { %>
+                    <% Object.entries(tier.subscriptions).forEach(([currency, price]) => { %>
+                      <div class="calculated-price">
+                        <strong><%= currency %>:</strong> 
+                        <span class="calculated-value" data-currency="<%= currency %>">
+                          <%= typeof price === 'number' ? price.toFixed(2) : '0.00' %>
+                        </span>
+                        <small>(Base: <%= basePrices[currency] || 0 %> × <%= tier.userCount || 0 %> × <%= ((tier.volumeDiscount || 0) * 100).toFixed(1) %>%)</small>
+                      </div>
+                    <% }) %>
+                  <% } else { %>
+                    <% Object.entries(basePrices).forEach(([currency, basePrice]) => { %>
+                      <div class="calculated-price">
+                        <strong><%= currency %>:</strong> 
+                        <span class="calculated-value" data-currency="<%= currency %>">0.00</span>
+                        <small>(Base: <%= basePrice || 0 %> × <%= tier.userCount || 0 %> × <%= ((tier.volumeDiscount || 0) * 100).toFixed(1) %>%)</small>
+                      </div>
+                    <% }) %>
+                  <% } %>
+                </div>
+                
+                <button type="button" class="delete-tier" data-tier-id="<%= tier.id || '' %>">Delete Tier</button>
+              </div>
+              <% } %>
+            <% }) %>
+          </div>
+          <div class="button-group">
+            <button type="submit">Update Volume Pricing</button>
+          </div>
+        </form>
+
+        <div class="add-tier-form">
+          <h3>Add New Pricing Tier</h3>
+          <form action="/admin/addVolumeTier" method="POST">
+            <div class="form-group">
+              <label>User Count</label>
+              <input type="number" name="userCount" id="newTierUserCount" required min="1">
+            </div>
+            <div class="form-group">
+              <label>Volume Discount (%)</label>
+              <input type="number" name="volumeDiscount" id="newTierDiscount" step="0.01" min="0" max="100" required>
+            </div>
+            
+            <div class="calculated-prices" id="newTierPreview">
+              <h4>Price Preview:</h4>
+              <% Object.entries(basePrices).forEach(([currency, basePrice]) => { %>
+                <div class="calculated-price">
+                  <strong><%= currency %>:</strong> 
+                  <span class="preview-value" data-currency="<%= currency %>" data-base-price="<%= basePrice %>">0.00</span>
+                </div>
+              <% }) %>
+            </div>
+            
+            <button type="submit">Add New Tier</button>
+          </form>
+        </div>
+      </div>
     </div>
 
     <div class="button-group">
@@ -133,76 +220,156 @@
     </div>
   </div>
 
-  <script>
-     // Tab switching functionality
-    document.querySelectorAll('.tab-button').forEach(button => {
-      button.addEventListener('click', () => {
-        // Remove active class from all buttons and tabs
-        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-        
-        // Add active class to clicked button and corresponding tab
-        button.classList.add('active');
-        const tabId = button.getAttribute('data-tab');
-        document.getElementById(tabId).classList.add('active');
-      });
-    });
+<script>
+// Store base prices for calculations
+let basePricesData;
 
-    // Function to calculate volume prices based on discount
-      function calculateVolumePrices(discountInput) {
-      const card = discountInput.closest('.variable-card');
-      const discount = parseFloat(discountInput.value) / 100;
-      const currencyInputs = card.querySelectorAll('input[type="number"]:not([name*="volumeDiscount"])');
+// Initialize basePricesData from server data
+<% if (basePrices && basePrices.basePrices) { %>
+  basePricesData = {
+    <% Object.entries(basePrices.basePrices).forEach(([currency, price], index) => { %>
+      "<%= currency %>": <%= typeof price === 'number' ? price : 0 %><%= index < Object.entries(basePrices.basePrices).length - 1 ? ',' : '' %>
+    <% }) %>
+  };
+<% } else { %>
+  basePricesData = {
+    GBP: 33,
+    EUR: 34,
+    USD: 36
+  };
+<% } %>
+
+document.addEventListener('DOMContentLoaded', function() {
+  
+  // Tab switching functionality
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', () => {
+      // Remove active class from all buttons and tabs
+      document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
       
-      currencyInputs.forEach(input => {
-        if (!input.dataset.originalValue) {
-          // Store original value if not already stored
-          input.dataset.originalValue = input.value;
-        }
-        
-        // Calculate discounted price (original * (1 - discount))
-        const originalPrice = parseFloat(input.dataset.originalValue);
-        const discountedPrice = originalPrice * (1 - discount);
-        
-        // Only update if the current value matches the previous calculation
-        // This prevents overwriting manual edits
-        const currentValue = parseFloat(input.value);
-        const expectedValue = originalPrice * (1 - parseFloat(input.dataset.lastDiscount || 0));
-        
-        if (Math.abs(currentValue - expectedValue) < 0.01 || !input.dataset.lastDiscount) {
-          input.value = discountedPrice.toFixed(2);
-        }
-        
-        // Store the current discount for next calculation
-        input.dataset.lastDiscount = discount;
-      });
+      // Add active class to clicked button and corresponding tab
+      button.classList.add('active');
+      const tabId = button.getAttribute('data-tab');
+      document.getElementById(tabId).classList.add('active');
+      
+      // Re-attach delete button listeners after tab switch
+      attachDeleteListeners();
+    });
+  });
+
+  // Function to calculate volume price - CORRECTED FORMULA
+  function calculateVolumePrice(basePrice, userCount, volumeDiscountPercent) {
+    // Convert percentage input to decimal, then apply the correct formula
+    const volumeDiscountDecimal = volumeDiscountPercent / 100;
+    return (basePrice * userCount) * (1 - volumeDiscountDecimal);
+  }
+
+  // Function to update calculated prices for existing tiers
+  function updateCalculatedPrices(discountInput) {
+    const card = discountInput.closest('.variable-card');
+    const userCount = parseInt(discountInput.dataset.userCount) || 0;
+    const volumeDiscountPercent = parseFloat(discountInput.value) || 0;
+
+    const calculatedValues = card.querySelectorAll('.calculated-value');
+    calculatedValues.forEach(span => {
+      const currency = span.dataset.currency;
+      const basePrice = basePricesData[currency] || 0;
+      const finalPrice = calculateVolumePrice(basePrice, userCount, volumeDiscountPercent);
+      span.textContent = finalPrice.toFixed(2);
+      
+      // Update the formula display to show correct calculation
+      const small = span.parentElement.querySelector('small');
+      if (small) {
+        small.textContent = `(Base: ${basePrice} × ${userCount} × (1 - ${volumeDiscountPercent.toFixed(1)}%))`;
+      }
+    });
+  }
+
+  // Function to update preview for new tier
+  function updateNewTierPreview() {
+    const userCount = parseInt(document.getElementById('newTierUserCount').value) || 0;
+    const volumeDiscount = parseFloat(document.getElementById('newTierDiscount').value) || 0;
+
+    const previewValues = document.querySelectorAll('.preview-value');
+    previewValues.forEach(span => {
+      const currency = span.dataset.currency;
+      const basePrice = parseFloat(span.dataset.basePrice) || 0;
+      const finalPrice = calculateVolumePrice(basePrice, userCount, volumeDiscount);
+      span.textContent = finalPrice.toFixed(2);
+    });
+  }
+
+  // Function to refresh base prices when base prices tab is updated
+  function refreshBasePrices() {
+    // Update basePricesData from the form inputs
+    const basePriceInputs = document.querySelectorAll('input[name^="basePrices["]');
+    basePriceInputs.forEach(input => {
+      const currency = input.name.match(/basePrices\[(\w+)\]/)[1];
+      basePricesData[currency] = parseFloat(input.value) || 0;
+    });
+    
+    // Update all volume pricing calculations with new base prices
+    document.querySelectorAll('.volume-discount-input').forEach(input => {
+      updateCalculatedPrices(input);
+    });
+    
+    // Update new tier preview
+    updateNewTierPreview();
+    
+    // Update preview values base prices
+    document.querySelectorAll('.preview-value').forEach(span => {
+      const currency = span.dataset.currency;
+      span.dataset.basePrice = basePricesData[currency] || 0;
+    });
+  }
+
+  // Listen for changes to base price inputs
+  document.addEventListener('input', function(e) {
+    if (e.target.name && e.target.name.startsWith('basePrices[')) {
+      refreshBasePrices();
     }
+  });
 
-    // Set up event listeners for discount inputs
-    document.querySelectorAll('input[name*="volumeDiscount"]').forEach(input => {
-      // Calculate initial prices
-      calculateVolumePrices(input);
-      
-      // Set up change listener
-      input.addEventListener('change', function() {
-        calculateVolumePrices(this);
-      });
+  // Set up event listeners for existing tier discount inputs
+  document.querySelectorAll('.volume-discount-input').forEach(input => {
+    input.addEventListener('input', function() {
+      updateCalculatedPrices(this);
     });
+    // Calculate initial values
+    updateCalculatedPrices(input);
+  });
 
-    // Set up event listeners for currency inputs to track manual edits
-    document.querySelectorAll('input[type="number"]:not([name*="volumeDiscount"])').forEach(input => {
-      input.addEventListener('change', function() {
-        // When manually edited, update the original value to this new value
-        this.dataset.originalValue = this.value;
-        this.dataset.lastDiscount = 0; // Reset discount tracking
-      });
+  // Set up event listeners for new tier form
+  document.getElementById('newTierUserCount').addEventListener('input', updateNewTierPreview);
+  document.getElementById('newTierDiscount').addEventListener('input', updateNewTierPreview);
+
+  // Function to attach delete button listeners
+  function attachDeleteListeners() {
+    document.querySelectorAll('.delete-tier').forEach(button => {
+      // Remove existing listeners to prevent duplicates
+      button.replaceWith(button.cloneNode(true));
     });
-
+    
+    // Re-select and add listeners to the new buttons
     document.querySelectorAll('.delete-tier').forEach(button => {
       button.addEventListener('click', async (e) => {
+        e.preventDefault();
+        
         const tierId = e.target.getAttribute('data-tier-id');
+        console.log('Delete button clicked for tier:', tierId);
+        
+        if (!tierId) {
+          alert('Error: No tier ID found');
+          return;
+        }
+        
         if (confirm('Are you sure you want to delete this pricing tier?')) {
           try {
+            const originalText = button.textContent;
+            button.textContent = 'Deleting...';
+            button.disabled = true;
+            
             const response = await fetch('/admin/deleteVolumeTier', {
               method: 'POST',
               headers: {
@@ -211,18 +378,36 @@
               body: JSON.stringify({ tierId })
             });
             
-            if (response.ok) {
-              window.location.reload(); // Refresh to show updated list
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              const tierCard = button.closest('.variable-card');
+              if (tierCard) {
+                tierCard.remove();
+              }
+              alert('Tier deleted successfully');
             } else {
-              const error = await response.json();
-              alert(`Error deleting tier: ${error.message}`);
+              throw new Error(result.message || 'Unknown error');
             }
           } catch (err) {
-            alert('Failed to delete tier. Please try again.');
+            console.error('Delete error:', err);
+            alert(`Failed to delete tier: ${err.message}`);
+            
+            button.textContent = originalText;
+            button.disabled = false;
           }
         }
       });
     });
-  </script>
+  }
+
+  // Initial attachment of delete listeners
+  attachDeleteListeners();
+});
+</script>
 </body>
 </html>
