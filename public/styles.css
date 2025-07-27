@@ -537,6 +537,18 @@ textarea.show-error:invalid {
   border-radius: 4px;
 }
 
+.base-prices-section {
+  background-color: #f0f8ff;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  border: 1px solid #d0e3ff;
+}
+
+.base-prices-section h2 {
+  color: #2a5885;
+  margin-top: 0;
+}
 
 /* Tablet styles (≤900px) */
 @media screen and (max-width: 900px) {
