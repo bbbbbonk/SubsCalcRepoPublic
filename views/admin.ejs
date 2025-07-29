@@ -33,7 +33,6 @@
         content: " Saving...";
         color: #666;
       }
-
       /* Styles for the rounding menu */
       .rounding-menu {
         margin-top: 30px;
@@ -42,43 +41,42 @@
         border-radius: 5px;
         background-color: #f9f9f9;
       }
-
       .rounding-menu h3 {
         margin-top: 0;
       }
-
       .rounding-options {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
         margin-bottom: 15px;
       }
-
       .rounding-option {
         display: flex;
         align-items: center;
         gap: 5px;
       }
-
       .rounding-option input[type="radio"] {
         margin: 0;
       }
-
       .rounding-buttons {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
       }
-
       .rounding-buttons button {
         flex: 1;
         min-width: 120px;
       }
-      
       /* Highlight editable GBP fields */
       .editable-gbp {
         background-color: #e6f7ff;
         border: 1px solid #1890ff;
+      }
+      /* Style for calculated annual price display */
+      .base-calculated-annual-price-display {
+          background-color: #f0f0f0; /* Light grey background */
+          color: #333; /* Darker text for contrast */
+          font-weight: bold; /* Make it stand out slightly */
       }
   </style>
 </head>
@@ -91,39 +89,12 @@
   </div>
   <div class="container">
     <div class="step-indicator">
-      <h2 id="current-step-title">Step 1: Edit Discounts</h2>
+      <h2 id="current-step-title">Step 1: Edit PPUs</h2> <!-- Updated initial title -->
     </div>
-    <!-- Step 1: Discounts -->
-    <div id="step1" class="step-container active">
-      <h2>Discount Settings</h2>
-      <form id="discounts-form" action="/admin/updateDiscounts" method="POST">
-          <div class="variable-grid">
-          <% if (discountRules.commitments) { %>
-              <% discountRules.commitments.forEach((commitment, index) => { %>
-              <div class="variable-card">
-                  <h3><%= commitment.name %></h3>
-                  <label>Discount Percentage</label>
-                  <input type="number" name="commitments[<%= commitment.key %>]"
-                      value="<%= (commitment.value * 100).toFixed(20) %>" step="0.00000000000000000001" min="0" max="100">
-              </div>
-              <% }) %>
-          <% } %>
-          <div class="variable-card">
-              <h3>Current Subscriber Discount</h3>
-              <label>Additional Discount (%)</label>
-              <input type="number" name="currentSubscriber"
-                  value="<%= (discountRules.currentSubscriber * 100).toFixed(20) %>" step="0.00000000000000000001" min="0" max="100">
-          </div>
-          </div>
-      </form>
-      <div class="step-navigation">
-        <button disabled>Previous</button>
-        <button class="next-step" data-next="2">Next: Edit PPUs</button>
-      </div>
-    </div>
-    <!-- Step 2: PPUs -->
-    <div id="step2" class="step-container">
+    <!-- Step 1: PPUs (was Step 2) -->
+    <div id="step1" class="step-container active"> <!-- Changed ID and made active -->
       <h2>Per-User Pricing (PPU)</h2>
+      <p>Per-User pricing is used when the user amount is lower than the lowest volume pricing tier.</p>
       <form id="ppus-form" action="/admin/updatePPUs" method="POST">
         <div class="variable-grid">
           <% Object.entries(ppus).forEach(([currency, values]) => { %>
@@ -137,36 +108,63 @@
         </div>
       </form>
       <div class="step-navigation">
-        <button class="prev-step" data-prev="1">Previous: Discounts</button>
-        <button class="next-step" data-next="3">Next: Edit Base Prices</button>
+        <button disabled>Previous</button>
+        <button class="next-step" data-next="2">Next: Edit Base Prices</button> <!-- Updated data-next -->
       </div>
     </div>
-    <!-- Step 3: Base Prices -->
-    <div id="step3" class="step-container">
-      <h2>Annual Base Prices for Volume Pricing (per user)</h2>
+    <!-- Step 2: Base Prices (was Step 3) -->
+    <div id="step2" class="step-container"> <!-- Changed ID -->
+      <h2>Monthly Base Prices for Volume Pricing (per user)</h2>
+      <p>The monthly base price is used to calculate the volume pricing using the base price and volume discount.</p>
       <form id="base-prices-form" action="/admin/updateBasePrices" method="POST">
         <div class="variable-grid">
           <div class="variable-card">
             <h3>Base Prices</h3>
-            <% Object.entries(basePrices.subscriptions).forEach(([currency, price]) => { %>
-              <label><%= currency %> Price</label>
-              <input type="number" name="subscriptions[<%= currency %>]"
-                    value="<%= typeof price === 'number' ? price.toFixed(2) : '0.00' %>"
-                    step="0.01" min="0" required class="base-price-input" data-currency="<%= currency %>">
+            <% Object.entries(basePrices.subscriptions).forEach(([currency, annualPrice]) => { %>
+              <% const monthlyPrice = typeof annualPrice === 'number' ? (annualPrice / 12).toFixed(4) : '0.0000'; %>
+              <label><%= currency %> Monthly Price</label>
+              <!-- Input for Monthly Price -->
+              <input
+                type="number"
+                name="monthlySubscriptions[<%= currency %>]"
+                value="<%= monthlyPrice %>"
+                step="0.0001"
+                min="0"
+                required
+                class="base-monthly-price-input"
+                data-currency="<%= currency %>"
+              >
+              <!-- Hidden input to store the calculated annual price for submission -->
+              <input
+                type="hidden"
+                name="subscriptions[<%= currency %>]"
+                value="<%= typeof annualPrice === 'number' ? annualPrice.toFixed(2) : '0.00' %>"
+                class="base-annual-price-input"
+                data-currency="<%= currency %>"
+              >
+              <!-- Display the calculated annual price -->
+              <label><%= currency %> Annual Price (Calculated)</label>
+              <input
+                type="number"
+                readonly
+                value="<%= typeof annualPrice === 'number' ? annualPrice.toFixed(2) : '0.00' %>"
+                class="base-calculated-annual-price-display"
+                data-currency="<%= currency %>"
+              >
             <% }) %>
           </div>
         </div>
       </form>
       <div class="step-navigation">
-        <button class="prev-step" data-prev="2">Previous: PPUs</button>
-        <button class="next-step" data-next="4">Next: Edit Volume Pricing</button>
+        <button class="prev-step" data-prev="1">Previous: PPUs</button> <!-- Updated data-prev -->
+        <button class="next-step" data-next="3">Next: Edit Volume Pricing</button> <!-- Updated data-next -->
       </div>
     </div>
-    <!-- Step 4: Volume Pricing -->
-    <div id="step4" class="step-container">
+    <!-- Step 3: Volume Pricing (was Step 4) -->
+    <div id="step3" class="step-container"> <!-- Changed ID -->
       <h2>Volume Pricing Tiers</h2>
-
-      <!-- Moved Add New Pricing Tier Form to the Top -->
+      <p>Each box represents a pricing tier. Meaning that if the user amount if for example 1350, the pricing tier for 1400 users is used.</p>
+      <p>The prices are calculated by either editing the volume discount or the GBP price. Both ways the prices match with each other.</p>
       <div class="add-tier-form">
         <h3>Add New Pricing Tier</h3>
         <form id="add-tier-form">
@@ -176,19 +174,19 @@
           </div>
           <div class="form-group">
             <label>Volume Discount (%)</label>
+             <!-- Keep a very small step for maximum input precision -->
             <input type="number" name="volumeDiscount" step="0.00000000000000000001" min="0" max="100" required id="new-tier-discount">
           </div>
           <% Object.entries(basePrices.subscriptions).forEach(([currency, basePrice]) => { %>
             <div class="form-group">
               <label><%= currency %> Total Price</label>
               <input type="number" name="subscriptions[<%= currency %>]" step="0.01" min="0" required
-                     readonly class="new-tier-calculated-price" data-currency="<%= currency %>">
+                     disabled class="new-tier-calculated-price" data-currency="<%= currency %>">
             </div>
           <% }) %>
           <button type="submit" id="add-tier-button">Add New Tier</button>
         </form>
       </div>
-
       <!-- Existing Volume Pricing Tiers -->
       <form id="volume-pricing-form" action="/admin/updateVolumePricing" method="POST">
         <div class="variable-grid" id="volume-pricing-grid">
@@ -197,9 +195,12 @@
               <h3><%= tier.userCount.toLocaleString() %> Users</h3>
               <input type="hidden" name="tiers[<%= tier.id %>][id]" value="<%= tier.id %>">
               <input type="hidden" name="tiers[<%= tier.id %>][userCount]" value="<%= tier.userCount %>">
+              <!-- Display discount with maximum JS precision using toString() -->
               <label>Volume Discount %</label>
               <input type="number" name="tiers[<%= tier.id %>][volumeDiscount]"
-                    value="<%= (tier.volumeDiscount * 100).toFixed(20) %>" step="0.00000000000000000001" min="0" max="100" class="discount-input" data-tier-id="<%= tier.id %>">
+                    value="<%= (tier.volumeDiscount * 100).toString() %>"
+                    step="0.00000000000000000001" min="0" max="100"
+                    class="discount-input" data-tier-id="<%= tier.id %>">
               <% Object.entries(basePrices.subscriptions).forEach(([currency, basePrice]) => { %>
                 <% if (currency === 'GBP') { %>
                   <!-- GBP is editable -->
@@ -220,7 +221,6 @@
           <% }) %>
         </div>
       </form>
-
       <!-- Rounding Menu Added at the Bottom -->
       <div class="rounding-menu">
         <h3>Round Volume Tier Prices</h3>
@@ -245,9 +245,38 @@
           <button type="button" id="undo-rounding-button">Undo Rounding</button>
         </div>
       </div>
-
       <div class="step-navigation">
-        <button class="prev-step" data-prev="3">Previous: Base Prices</button>
+        <button class="prev-step" data-prev="2">Previous: Base Prices</button> <!-- Updated data-prev -->
+        <button class="next-step" data-next="4">Next: Edit Discounts</button> <!-- Updated data-next -->
+      </div>
+    </div>
+    <!-- Step 4: Discounts (was Step 1) -->
+    <div id="step4" class="step-container"> <!-- Changed ID -->
+      <h2>Discount Settings</h2>
+      <form id="discounts-form" action="/admin/updateDiscounts" method="POST">
+          <div class="variable-grid">
+          <% if (discountRules.commitments) { %>
+              <% discountRules.commitments.forEach((commitment, index) => { %>
+              <div class="variable-card">
+                  <h3><%= commitment.name %></h3>
+                  <label>Discount Percentage</label>
+                  <!-- Use toString() for max precision in discount rules too -->
+                  <input type="number" name="commitments[<%= commitment.key %>]"
+                      value="<%= (commitment.value * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
+              </div>
+              <% }) %>
+          <% } %>
+          <div class="variable-card">
+              <h3>Current Subscriber Discount</h3>
+              <label>Additional Discount (%)</label>
+              <!-- Use toString() for max precision -->
+              <input type="number" name="currentSubscriber"
+                  value="<%= (discountRules.currentSubscriber * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
+          </div>
+          </div>
+      </form>
+      <div class="step-navigation">
+        <button class="prev-step" data-prev="3">Previous: Volume Pricing</button> <!-- Updated data-prev -->
         <button type="button" id="save-all-button">Save All Changes</button>
       </div>
     </div>
@@ -257,15 +286,16 @@
 <script>
   // Store original values for undo functionality
   let originalPrices = new Map();
-
-  // Step navigation setup
+  // Step navigation setup - Updated titles order
   const stepTitles = {
-    1: "Step 1: Edit Discounts",
-    2: "Step 2: Edit PPUs",
-    3: "Step 3: Edit Base Prices",
-    4: "Step 4: Edit Volume Pricing"
+    1: "Step 1: Edit PPUs",
+    2: "Step 2: Edit Base Prices",
+    3: "Step 3: Edit Volume Pricing",
+    4: "Step 4: Edit Discounts"
   };
-  // Initialize with the active step from server
+  // Initialize with the active step from server (now maps to new step order)
+  // The server-side activeStep logic might need adjustment if it relies on the old step numbers.
+  // For now, we assume it correctly maps to the new step 1 (PPUs) as the default.
   const activeStep = <%= activeStep || 1 %>;
   // Set up step navigation
   function setupStepNavigation() {
@@ -355,15 +385,15 @@ function setupAddTier() {
   // Update calculated prices when inputs change
   function updateCalculatedPrices() {
     const userCount = parseInt(userCountInput.value) || 0;
-    const discount = parseFloat(discountInput.value) || 0;
+    const discount = parseFloat(discountInput.value) || 0; // Parse as float
     // Update calculated prices for each currency
     document.querySelectorAll('.new-tier-calculated-price').forEach(input => {
       const currency = input.getAttribute('data-currency');
-      // Get base price from the form
-      const basePriceInput = document.querySelector(`#base-prices-form input[data-currency="${currency}"]`);
+      // Get base price from the form (now the hidden annual input)
+      const basePriceInput = document.querySelector(`#base-prices-form input.base-annual-price-input[data-currency="${currency}"]`);
       const basePrice = basePriceInput ? parseFloat(basePriceInput.value) || 0 : 0;
       // Correct calculation: (user count * base price) * (1 - volume discount)
-      const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2);
+      const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
       input.value = calculatedPrice;
     });
   }
@@ -426,10 +456,10 @@ function setupAddTier() {
       saveButton.textContent = 'Saving...';
       try {
         const forms = [
-          document.getElementById('discounts-form'),
-          document.getElementById('ppus-form'),
-          document.getElementById('base-prices-form'),
-          document.getElementById('volume-pricing-form')
+          document.getElementById('ppus-form'),           // Step 1
+          document.getElementById('base-prices-form'),   // Step 2
+          document.getElementById('volume-pricing-form'), // Step 3
+          document.getElementById('discounts-form')      // Step 4
         ];
         for (const form of forms) {
           if (!form) continue;
@@ -452,7 +482,7 @@ function setupAddTier() {
         }
         // After all forms are saved successfully, update the URL to show success
         const url = new URL(window.location.href);
-        url.searchParams.set('step', '4');
+        url.searchParams.set('step', '4'); // Redirect to the last step (Discounts) after saving
         if (url.searchParams.get('message')) {
           url.searchParams.set('message', 'All changes saved successfully!');
         } else {
@@ -475,55 +505,69 @@ function setupAddTier() {
   }
   // Initialize calculations on page load
   function calculatePrices() {
-    // Base price calculation logic
-    const basePriceInputs = document.querySelectorAll('#base-prices-form input[name^="subscriptions"]');
-    basePriceInputs.forEach(input => {
-      input.addEventListener('input', function() {
-        const currency = this.name.match(/\[(.*?)\]/)[1];
-        const basePrice = parseFloat(this.value) || 0;
-        // Update volume pricing calculations
-        document.querySelectorAll(`#volume-pricing-grid input[data-currency="${currency}"]`).forEach(volumeInput => {
-          const tierId = volumeInput.getAttribute('data-tier-id');
-          if (tierId) {
-            const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
-            const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
-            const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-            const discount = discountInput ? parseFloat(discountInput.value) || 0 : 0;
-            // Correct calculation: (user count * base price) * (1 - volume discount)
-            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2);
-            volumeInput.value = calculatedPrice;
-          }
+    // --- Updated Base Price Calculation Logic (Monthly Input -> Annual Stored/Displayed) ---
+    // Listen for changes on the *monthly* base price inputs
+    const baseMonthlyPriceInputs = document.querySelectorAll('#base-prices-form input[name^="monthlySubscriptions"]');
+    baseMonthlyPriceInputs.forEach(input => {
+        // Trigger calculation on input change
+        input.addEventListener('input', function() {
+            const currency = this.name.match(/\[(.*?)\]/)[1];
+            const monthlyPrice = parseFloat(this.value) || 0;
+            const calculatedAnnualPrice = (monthlyPrice * 12); // Calculate annual
+            // Update the hidden annual price input (this is what gets submitted)
+            const annualPriceInput = document.querySelector(`#base-prices-form input.base-annual-price-input[data-currency="${currency}"]`);
+            if (annualPriceInput) {
+                annualPriceInput.value = calculatedAnnualPrice.toFixed(2); // Store annual with 2 decimals
+            }
+            // Update the displayed annual price for confirmation
+            const annualPriceDisplay = document.querySelector(`#base-prices-form input.base-calculated-annual-price-display[data-currency="${currency}"]`);
+            if (annualPriceDisplay) {
+                annualPriceDisplay.value = calculatedAnnualPrice.toFixed(2); // Display annual with 2 decimals
+            }
+            // --- Also update related volume pricing calculations ---
+            // Find all volume pricing inputs for this currency
+            document.querySelectorAll(`#volume-pricing-grid input[data-currency="${currency}"]`).forEach(volumeInput => {
+                const tierId = volumeInput.getAttribute('data-tier-id');
+                if (tierId) {
+                    // Get user count and discount for this tier
+                    const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
+                    const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
+                    const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
+                    const discount = discountInput ? parseFloat(discountInput.value) || 0 : 0; // Parse discount from input (already %)
+                    // Recalculate volume price using the NEW annual base price
+                    const calculatedVolumePrice = (userCount * calculatedAnnualPrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
+                    volumeInput.value = calculatedVolumePrice;
+                }
+            });
+            // --- Also update the new tier form calculations ---
+            const newTierPriceInput = document.querySelector(`#add-tier-form input[data-currency="${currency}"]`);
+            if (newTierPriceInput) {
+                const userCountInput = document.getElementById('new-tier-user-count');
+                const discountInput = document.getElementById('new-tier-discount');
+                const userCount = parseInt(userCountInput.value) || 0;
+                const discount = parseFloat(discountInput.value) || 0; // Parse discount from input (already %)
+                // Recalculate new tier price using the NEW annual base price
+                const calculatedNewTierPrice = (userCount * calculatedAnnualPrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
+                newTierPriceInput.value = calculatedNewTierPrice;
+            }
         });
-        
-        // Also update the new tier form calculations
-        const newTierPriceInput = document.querySelector(`#add-tier-form input[data-currency="${currency}"]`);
-        if (newTierPriceInput) {
-          const userCountInput = document.getElementById('new-tier-user-count');
-          const discountInput = document.getElementById('new-tier-discount');
-          const userCount = parseInt(userCountInput.value) || 0;
-          const discount = parseFloat(discountInput.value) || 0;
-          // Correct calculation: (user count * base price) * (1 - volume discount)
-          const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2);
-          newTierPriceInput.value = calculatedPrice;
-        }
-      });
     });
-    
+    // --- Keep the existing Volume Discount, User Count, and GBP Price change calculations ---
+    // They should work correctly as they read the *annual* base price from the hidden input or recalculate it.
     // Volume discount calculation logic
     document.querySelectorAll('#volume-pricing-form input[name$="[volumeDiscount]"]').forEach(discountInput => {
-      discountInput.addEventListener('input', function() {
+        discountInput.addEventListener('input', function() {
         const tierId = this.getAttribute('data-tier-id');
         if (tierId) {
-          const discount = parseFloat(this.value) || 0;
+          const discount = parseFloat(this.value) || 0; // Get discount % from input
           const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
           const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-          
-          // Update all currency prices for this tier
-          document.querySelectorAll('#base-prices-form input[name^="subscriptions"]').forEach(basePriceInput => {
+          // Update all currency prices for this tier - read from hidden annual input
+          document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]').forEach(basePriceInput => {
             const currency = basePriceInput.name.match(/\[(.*?)\]/)[1];
             const basePrice = parseFloat(basePriceInput.value) || 0;
             // Correct calculation: (user count * base price) * (1 - volume discount)
-            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2);
+            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
             const volumePriceInput = document.querySelector(`input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
             if (volumePriceInput) {
               volumePriceInput.value = calculatedPrice;
@@ -532,22 +576,20 @@ function setupAddTier() {
         }
       });
     });
-    
     // User count calculation logic
     document.querySelectorAll('#volume-pricing-form input[name$="[userCount]"]').forEach(userCountInput => {
-      userCountInput.addEventListener('input', function() {
+        userCountInput.addEventListener('input', function() {
         const tierId = this.name.match(/tiers\[(\d+)\]/)?.[1];
         if (tierId) {
           const userCount = parseInt(this.value) || 0;
           const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
-          const discount = discountInput ? parseFloat(discountInput.value) || 0 : 0;
-          
-          // Update all currency prices for this tier
-          document.querySelectorAll('#base-prices-form input[name^="subscriptions"]').forEach(basePriceInput => {
+          const discount = discountInput ? parseFloat(discountInput.value) || 0 : 0; // Get discount % from input
+          // Update all currency prices for this tier - read from hidden annual input
+          document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]').forEach(basePriceInput => {
             const currency = basePriceInput.name.match(/\[(.*?)\]/)[1];
             const basePrice = parseFloat(basePriceInput.value) || 0;
             // Correct calculation: (user count * base price) * (1 - volume discount)
-            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2);
+            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
             const volumePriceInput = document.querySelector(`input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
             if (volumePriceInput) {
               volumePriceInput.value = calculatedPrice;
@@ -556,34 +598,28 @@ function setupAddTier() {
         }
       });
     });
-    
     // GBP price change calculation logic - when GBP price is edited, update other currencies and volume discount
     document.querySelectorAll('#volume-pricing-grid input[data-currency="GBP"].editable-gbp').forEach(gbpInput => {
-      gbpInput.addEventListener('input', function() {
+        gbpInput.addEventListener('input', function() {
         const tierId = this.getAttribute('data-tier-id');
         if (tierId) {
           const gbpPrice = parseFloat(this.value) || 0;
-          
           // Get user count for this tier
           const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
           const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-          
-          // Get base GBP price
-          const baseGbpPriceInput = document.querySelector('#base-prices-form input[data-currency="GBP"]');
+          // Get base GBP price - read from hidden annual input
+          const baseGbpPriceInput = document.querySelector('#base-prices-form input.base-annual-price-input[data-currency="GBP"]');
           const baseGbpPrice = baseGbpPriceInput ? parseFloat(baseGbpPriceInput.value) || 0 : 0;
-          
           // Calculate volume discount: 1 - (editedPrice / (basePrice * userCount))
           if (userCount > 0 && baseGbpPrice > 0) {
             const calculatedDiscount = 1 - (gbpPrice / (baseGbpPrice * userCount));
             const discountPercent = Math.max(0, Math.min(100, calculatedDiscount * 100)); // Clamp between 0 and 100
-            
-            // Update the discount input with 20 decimal precision
+            // Update the discount input with maximum JS precision using toString()
             const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
             if (discountInput) {
-              discountInput.value = discountPercent.toFixed(20);
+              discountInput.value = discountPercent.toString(); // Use toString() for display
             }
           }
-          
           // Update EUR and USD prices based on GBP and currency rates
           <% Object.entries(basePrices.subscriptions).forEach(([currency, basePrice]) => { %>
             <% if (currency !== 'GBP') { %>
@@ -598,15 +634,14 @@ function setupAddTier() {
         }
       });
     });
+    // --- End of Updated Base Price Calculation Logic ---
   }
-
   // --- New Rounding Functions ---
   function setupRounding() {
     const roundUpButton = document.getElementById('round-up-button');
     const roundDownButton = document.getElementById('round-down-button');
     const roundNearestButton = document.getElementById('round-nearest-button');
     const undoRoundingButton = document.getElementById('undo-rounding-button');
-
     // Initialize original prices map
     function initializeOriginalPrices() {
       document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]').forEach(input => {
@@ -616,7 +651,6 @@ function setupAddTier() {
         }
       });
     }
-
     function roundPrices(method) {
         const roundingBaseInputs = document.querySelectorAll('input[name="rounding-base"]');
         let roundingBase = 10; // Default
@@ -626,17 +660,13 @@ function setupAddTier() {
                 break;
             }
         }
-
         // Find all calculated price inputs in the volume pricing grid
         const priceInputs = document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]');
-
         priceInputs.forEach(input => {
             const originalValue = parseFloat(input.value);
             if (isNaN(originalValue)) return; // Skip if not a valid number
-
             let roundedValue;
             const factor = roundingBase;
-
             switch (method) {
                 case 'up':
                     roundedValue = Math.ceil(originalValue / factor) * factor;
@@ -649,14 +679,11 @@ function setupAddTier() {
                     roundedValue = Math.round(originalValue / factor) * factor;
                     break;
             }
-
             // Update the input value
             input.value = roundedValue.toFixed(2);
         });
-
         alert(`Prices rounded (${method}) to the nearest ${roundingBase}.`);
     }
-
     function undoRounding() {
       document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]').forEach(input => {
         const key = input.name;
@@ -666,17 +693,13 @@ function setupAddTier() {
       });
       alert('Rounding undone. Prices restored to original values.');
     }
-
     // Initialize original prices when page loads
     document.addEventListener('DOMContentLoaded', initializeOriginalPrices);
-
     if (roundUpButton) roundUpButton.addEventListener('click', () => roundPrices('up'));
     if (roundDownButton) roundDownButton.addEventListener('click', () => roundPrices('down'));
     if (roundNearestButton) roundNearestButton.addEventListener('click', () => roundPrices('nearest'));
     if (undoRoundingButton) undoRoundingButton.addEventListener('click', undoRounding);
   }
-
-
   // Initialize everything when page loads
   document.addEventListener('DOMContentLoaded', () => {
     setupStepNavigation();

@@ -1,33 +1,413 @@
+<!-- result.ejs -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Calculation Result</title>
   <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* --- Updated Styles for Spaciousness and Width --- */
+    .resultDiv {
+      /* Make container wider and center it */
+      max-width: 800px;
+      width: 90%;
+      margin: 20px auto;
+      /* Increase internal padding */
+      padding: 40px 50px;
+      /* Slightly larger base font */
+      font-size: 1.1rem;
+      /* Keep existing styles */
+      background-color: #ffffff;
+      color: rgb(0, 0, 0);
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+      box-sizing: border-box; /* Include padding in width calculation */
+      text-align: left; /* Change default text alignment */
+    }
+    .resultDiv h2 {
+      /* Larger heading */
+      font-size: 1.8rem;
+      text-align: center; /* Keep heading centered */
+      margin-bottom: 25px;
+    }
+    .resultDiv h3 {
+       /* Larger sub-heading */
+      font-size: 1.4rem;
+      margin-top: 30px;
+      margin-bottom: 15px;
+    }
+    .resultDiv p {
+       /* Add some space below paragraphs */
+      margin-bottom: 12px;
+    }
+    .price-comparison {
+      /* Increase margin above and below the table */
+      margin: 30px 0 20px 0;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .price-row {
+      display: flex;
+       /* Increase padding inside rows for more space */
+      padding: 15px 20px;
+      border-bottom: 1px solid #eee;
+       /* Slightly larger font size in table */
+      font-size: 1.05rem;
+      /* Make rows selectable by cursor */
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .price-row:last-child {
+      border-bottom: none;
+    }
+    /* Style for hover effect on selectable rows */
+    .price-row:not(.header-row):hover {
+       background-color: #f5f5f5; /* Light grey background on hover */
+    }
+    /* Style for the selected row (keeps existing styles) */
+    .price-row.selected {
+      background-color: #e6f7ff;
+      border-left: 4px solid #1890ff;
+      font-weight: bold;
+    }
+    .col-period {
+      flex: 2;
+    }
+    .col-discount, .col-monthly, .col-annual, .col-per-user {
+      flex: 1;
+      /* Ensure text alignment is right */
+      text-align: right;
+    }
+    .summary {
+      /* Increase margin and padding for the summary box */
+      margin: 30px 0;
+      padding: 25px;
+      background-color: #f9f9f9;
+      border-radius: 8px;
+      border: 1px solid #eee; /* Subtle border */
+    }
+    .summary p {
+       /* Slightly larger font size in summary */
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+    }
+    /* --- End Updated Styles --- */
+    /* --- Save Quote Modal Styles --- */
+    .modal {
+      display: none; /* Hidden by default */
+      position: fixed;
+      z-index: 1000; /* Sit on top */
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto; /* Enable scroll if needed */
+      background-color: rgb(0,0,0); /* Fallback color */
+      background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto; /* 15% from the top and centered */
+      padding: 20px;
+      border: 1px solid #888;
+      border-radius: 8px;
+      width: 80%;
+      max-width: 500px;
+      box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+      animation-name: animatetop;
+      animation-duration: 0.3s;
+    }
+    @keyframes animatetop {
+      from {top: -300px; opacity: 0}
+      to {top: 0; opacity: 1}
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover,
+    .close:focus {
+      color: black;
+      text-decoration: none;
+    }
+    .modal input[type="text"], .modal input[type="email"] { /* Added email type */
+       width: 100%;
+       padding: 10px;
+       margin: 10px 0 20px 0;
+       display: inline-block;
+       border: 1px solid #ccc;
+       border-radius: 4px;
+       box-sizing: border-box;
+    }
+    .modal button {
+       background-color: #4CAF50;
+       color: white;
+       padding: 10px 20px;
+       margin: 8px 0;
+       border: none;
+       border-radius: 4px;
+       cursor: pointer;
+       width: 100%;
+    }
+    .modal button:hover {
+       background-color: #45a049;
+    }
+    .save-quote-btn {
+       background-color: #1890ff; /* Blue color */
+       color: white;
+       padding: 10px 20px;
+       margin: 20px 0;
+       border: none;
+       border-radius: 4px;
+       cursor: pointer;
+       font-size: 1rem;
+    }
+    .save-quote-btn:hover {
+       background-color: #40a9ff;
+    }
+  </style>
 </head>
 <body>
-
   <div class="resultDiv">
     <h2>Calculation Result</h2>
-    <p><strong>Subscribers:</strong> <%= amount %></p>
-    <p><strong>Currency:</strong> <%= currency %></p>
-
-    <% if (usedVolumePricing) { %>
-      <p><strong>Price per User (Annual):</strong> <%= (multipliedAmount / amount).toFixed(4) %> <%= currency %></p>
-      <p><strong>Total Annual Price:</strong> <%= multipliedAmount.toFixed(2) %> <%= currency %></p>
-      <p><em>(Volume subscription prices are annual and include discounts)</em></p>
-    <% } else { %>
-      <p><strong>Price per User (Monthly):</strong> <%= price.toFixed(4) %> <%= currency %></p>
-      <p><strong>Discount:</strong> <%= multi %>%</p>
-      <p>Base price: <%= price.toFixed(4) %> x <%= amount %> = <%= (price * amount).toFixed(2) %> <%= currency %></p>
-      <p><strong>Monthly Price (after discount):</strong> <%= multipliedAmount.toFixed(2) %> <%= currency %></p>
-      <p><strong>Annual Price (monthly x 12):</strong> <%= (multipliedAmount * 12).toFixed(2) %> <%= currency %></p>
+    <p><strong>Subscribers:</strong> <span id="subscriberAmount"><%= amount %></span></p>
+    <p><strong>Currency:</strong> <span id="selectedCurrency"><%= currency %></span></p>
+    <% if (subscriberDiscount > 0) { %>
+      <!-- Ensure subscriberDiscount is a number before .toFixed -->
+      <p><strong>Subscriber Discount:</strong> <%= Number(subscriberDiscount).toFixed(1) %>%</p>
     <% } %>
+    <!-- Summary section that will be updated dynamically -->
+    <div class="summary" id="summarySection">
+      <% if (usedVolumePricing) { %>
+        <p><strong>Selected Plan:</strong> Volume Pricing (Annual)</p>
+        <p><strong>Annual Price (after discounts):</strong> <span id="summaryAnnualPrice"><%= selectedOption.annualPrice %></span> <span id="summaryCurrency"><%= currency %></span></p>
+        <!-- Ensure pricePerUser is a number before .toFixed -->
+        <p><strong>Price per User (Annual):</strong> <span id="summaryPricePerUser"><%= Number(selectedOption.pricePerUser).toFixed(4) %></span> <span id="summaryCurrency2"><%= currency %></span></p>
+      <% } else { %>
+        <!-- Ensure ppuValue is a number before .toFixed -->
+        <p><strong>Base Price per User (Monthly):</strong> <%= Number(ppuValue).toFixed(4) %> <%= currency %></p>
+        <p><strong>Monthly Price (after discounts):</strong> <span id="summaryMonthlyPrice"><%= selectedOption.monthlyPrice %></span> <span id="summaryCurrency"><%= currency %></span></p>
+        <p><strong>Annual Price (x12):</strong> <span id="summaryAnnualPrice"><%= selectedOption.annualPrice %></span> <span id="summaryCurrency2"><%= currency %></span></p>
+        <!-- Ensure pricePerUser is a number before .toFixed -->
+        <p><strong>Price per User (Monthly):</strong> <span id="summaryPricePerUser"><%= Number(selectedOption.pricePerUser).toFixed(4) %></span> <span id="summaryCurrency3"><%= currency %></span></p>
+      <% } %>
+    </div>
+    <h3>Compare All Commitment Options</h3>
+    <div class="price-comparison" id="priceComparison">
+      <!-- Header Row -->
+      <div class="price-row header-row" style="background-color: #f0f0f0; font-weight: bold;">
+        <div class="col-period">Commitment</div>
+        <div class="col-discount">Discount</div>
+        <div class="col-monthly">Monthly</div>
+        <div class="col-annual">Annual</div>
+        <div class="col-per-user">Per User</div>
+      </div>
+      <!-- Data Rows -->
+      <% allPrices.forEach(price => { %>
+        <!-- Add data-option-key for JavaScript identification -->
+        <div class="price-row <%= price.isSelected ? 'selected' : '' %>" data-option-key="<%= price.key %>">
+          <div class="col-period"><%= price.label %></div>
+          <!-- Display discount percentage correctly by multiplying the decimal value by 100 -->
+          <div class="col-discount"><%= (Number(price.value) * 100).toFixed(1) %>%</div>
+          <div class="col-monthly"><%= price.monthlyPrice %> <%= currency %></div>
+          <div class="col-annual"><%= price.annualPrice %> <%= currency %></div>
+          <!-- Ensure pricePerUser is a number before .toFixed -->
+          <div class="col-per-user"><%= Number(price.pricePerUser).toFixed(4) %> <%= currency %></div>
+        </div>
+      <% }) %>
+    </div>
+    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
+      <em>Note: Volume pricing applies for 1000+ users and is annual by default.</em>
+    </p>
+    <!-- Save Quote Button -->
+    <button id="saveQuoteBtn" class="save-quote-btn">Save Quote</button>
+    <!-- Save Quote Modal -->
+    <div id="saveQuoteModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>Save Quote</h3>
+        <p>Enter the customer name for this quote:</p>
+        <input type="text" id="customerNameInput" placeholder="Customer Name" required>
+        <p>Enter the email address to send the quote to:</p> <!-- New Email Input Label -->
+        <input type="email" id="customerEmailInput" placeholder="Customer Email" required> <!-- New Email Input Field -->
+        <button id="confirmSaveQuoteBtn">Confirm Save</button>
+        <p id="saveQuoteMessage" style="color: red; display: none;"></p> <!-- Error message display -->
+      </div>
+    </div>
   </div>
-
-  <form action="/" method="GET">
-    <button class="secondary-button" type="submit">Return</button>
-  </form>
-
+  <!-- Use standard button styles from styles.css -->
+  <div style="text-align: center; margin: 20px 0;">
+     <a href="/" class="secondary-button" style="display: inline-block;">Return</a>
+  </div>
+  <!-- JavaScript for interactivity -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // --- Pass data from EJS to JavaScript ---
+      // This assumes 'allPrices' data includes the 'key' property
+      // You need to modify server.js to pass the full 'allPrices' array
+      // For now, we'll reconstruct the necessary data from the rendered HTML
+      // A more robust way is to pass it directly from server.js (see note below)
+      const allPricesData = {};
+      document.querySelectorAll('.price-row:not(.header-row)').forEach(row => {
+          const key = row.getAttribute('data-option-key');
+          if (key) {
+              const cols = row.querySelectorAll('div');
+              // Assuming order: period(label), discount(value), monthly, annual, per-user
+              allPricesData[key] = {
+                  key: key,
+                  label: cols[0].textContent,
+                  // value is not directly displayed, but we can derive it from discount text if needed
+                  // For simplicity here, we just pass what's displayed
+                  monthlyPrice: parseFloat(cols[2].textContent), // Might need adjustment for currency
+                  annualPrice: parseFloat(cols[3].textContent),
+                  pricePerUser: parseFloat(cols[4].textContent)
+              };
+          }
+      });
+      // Note: A cleaner approach is to pass the data directly from server.js like this:
+      // In server.js res.render("result", { ..., allPricesForJS: JSON.stringify(allPrices), ... });
+      // Then in EJS: const allPricesData = <%- allPricesForJS %>;
+      // This avoids parsing HTML. For now, the above works.
+      const priceComparisonDiv = document.getElementById('priceComparison');
+      const summarySection = document.getElementById('summarySection');
+      const isVolumePricing = <%= usedVolumePricing ? 'true' : 'false' %>; // Pass boolean flag
+      // --- Store calculation inputs for saving quotes ---
+      const subscriberAmount = <%= amount %>;
+      const selectedCurrency = "<%= currency %>";
+      // --- End Store calculation inputs ---
+      // --- Save Quote Modal Logic ---
+      const modal = document.getElementById("saveQuoteModal");
+      const btn = document.getElementById("saveQuoteBtn");
+      const span = document.getElementsByClassName("close")[0];
+      const confirmBtn = document.getElementById("confirmSaveQuoteBtn");
+      const customerNameInput = document.getElementById("customerNameInput");
+      const customerEmailInput = document.getElementById("customerEmailInput"); // New Email Input Element
+      const saveQuoteMessage = document.getElementById("saveQuoteMessage");
+      btn.onclick = function() {
+        modal.style.display = "block";
+        saveQuoteMessage.style.display = "none"; // Hide message on open
+        // Clear previous inputs when modal opens
+        customerNameInput.value = '';
+        customerEmailInput.value = '';
+      }
+      span.onclick = function() {
+        modal.style.display = "none";
+      }
+      window.onclick = function(event) {
+        if (event.target == modal) {
+          modal.style.display = "none";
+        }
+      }
+      // --- End Save Quote Modal Logic ---
+      // Function to update the summary section
+      function updateSummary(selectedData) {
+          if (isVolumePricing) {
+              // Update Volume Pricing summary
+              document.getElementById('summaryAnnualPrice').textContent = selectedData.annualPrice.toFixed(2);
+              document.getElementById('summaryPricePerUser').textContent = selectedData.pricePerUser.toFixed(4);
+              // Update currency display if needed (though unlikely to change)
+              const currencyDisplays = document.querySelectorAll('#summaryCurrency, #summaryCurrency2, #summaryCurrency3');
+              currencyDisplays.forEach(el => el.textContent = selectedCurrency);
+          } else {
+              // Update PPU-based summary
+              // Base PPU is fixed, so we don't update it here
+              document.getElementById('summaryMonthlyPrice').textContent = selectedData.monthlyPrice.toFixed(2);
+              document.getElementById('summaryAnnualPrice').textContent = selectedData.annualPrice.toFixed(2);
+              document.getElementById('summaryPricePerUser').textContent = selectedData.pricePerUser.toFixed(4);
+               // Update currency display if needed (though unlikely to change)
+              const currencyDisplays = document.querySelectorAll('#summaryCurrency, #summaryCurrency2, #summaryCurrency3');
+              currencyDisplays.forEach(el => el.textContent = selectedCurrency);
+          }
+      }
+      // --- Save Quote Function ---
+      async function saveQuote(customerName, customerEmail) { // Accept email as argument
+          // Get the currently selected price data from the summary or the selected row
+          // It's easier to get it from the selected row data which we already have
+          const selectedRow = document.querySelector('.price-row.selected');
+          if (!selectedRow) {
+              alert("No commitment option selected.");
+              return;
+          }
+          const selectedKey = selectedRow.getAttribute('data-option-key');
+          const selectedData = allPricesData[selectedKey];
+          if (!selectedData) {
+             alert("Error retrieving selected option data.");
+             return;
+          }
+          // Prepare data to send to the server
+          const quoteData = {
+              QuoteCustomerName: customerName,
+              QuotePrice: selectedData.annualPrice.toFixed(2), // Send annual price as string
+              QuoteUserAmount: subscriberAmount.toString(), // Send amount as string
+              QuoteCurrency: selectedCurrency, // Send currency
+              QuoteCustomerEmail: customerEmail // Include email in data sent to server
+          };
+          try {
+              const response = await fetch('/save-quote', {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(quoteData)
+              });
+              const result = await response.json();
+              if (response.ok) {
+                  alert(`Quote saved successfully! ID: ${result.quoteId}`);
+                  modal.style.display = "none"; // Close modal on success
+              } else {
+                  saveQuoteMessage.textContent = result.message || "Failed to save quote.";
+                  saveQuoteMessage.style.display = "block";
+              }
+          } catch (error) {
+              console.error('Error saving quote:', error);
+              saveQuoteMessage.textContent = "An error occurred while saving the quote.";
+              saveQuoteMessage.style.display = "block";
+          }
+      }
+      confirmBtn.onclick = function() {
+          const customerName = customerNameInput.value.trim();
+          const customerEmail = customerEmailInput.value.trim(); // Get email value
+          if (!customerName) {
+              saveQuoteMessage.textContent = "Customer name is required.";
+              saveQuoteMessage.style.display = "block";
+              return;
+          }
+          // Basic email validation (you can use a more robust regex if needed)
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!customerEmail || !emailRegex.test(customerEmail)) {
+              saveQuoteMessage.textContent = "Please enter a valid email address.";
+              saveQuoteMessage.style.display = "block";
+              return;
+          }
+          saveQuote(customerName, customerEmail); // Pass both name and email
+      };
+      // --- End Save Quote Function ---
+      // Event delegation for clicks on price rows
+      priceComparisonDiv.addEventListener('click', function(event) {
+          // Find the closest .price-row ancestor of the clicked element
+          const clickedRow = event.target.closest('.price-row');
+          // Check if the clicked element is a data row (not the header)
+          if (clickedRow && !clickedRow.classList.contains('header-row')) {
+              const selectedKey = clickedRow.getAttribute('data-option-key');
+              // Remove 'selected' class from the currently selected row
+              const currentlySelectedRow = priceComparisonDiv.querySelector('.price-row.selected');
+              if (currentlySelectedRow) {
+                  currentlySelectedRow.classList.remove('selected');
+              }
+              // Add 'selected' class to the clicked row
+              clickedRow.classList.add('selected');
+              // Update the summary with the selected option's data
+              const selectedData = allPricesData[selectedKey];
+              if (selectedData) {
+                  updateSummary(selectedData);
+              }
+          }
+      });
+    });
+  </script>
 </body>
 </html>

@@ -11,10 +11,8 @@ import bcrypt from "bcrypt";
 
 // Enable .env support (for local development)
 dotenvConfig();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
 const app = express();
 app.use(express.json()); // For parsing application/json
 app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
@@ -910,13 +908,12 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       discountRules.commitments = Object.entries(discountRules.commitments).map(([key, value]) => ({
         key,
         name: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
-        value: parseFloat(value) || 0
+        value: parseFloat(value) || 0 // Ensure number
       }));
     }
 
     // Process PPUs (take the latest)
     const ppus = ppusResponse.resources[0]?.ppu || {};
-    
     // Ensure all standard/alternate values are numbers
     for (const currency in ppus) {
       if (ppus[currency]) {
@@ -926,7 +923,7 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
         }
       }
     }
-    
+
     // Process base prices
     const basePrices = basePricesResponse.resources[0] || {
       id: "BasePrices",
@@ -937,15 +934,21 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       }
     };
 
-    // Process volume pricing tiers
+    // Process volume pricing tiers - Ensure precision for volumeDiscount
     const volumePricing = volumePricingResponse.resources.map(tier => {
-      // Ensure all required fields exist
-      return {
+      // Ensure all required fields exist and volumeDiscount is handled precisely
+      const processedTier = {
         id: tier.id,
         userCount: tier.userCount,
-        volumeDiscount: tier.volumeDiscount || 0,
+        // Ensure volumeDiscount is a number. If it's stored with high precision,
+        // parseFloat should handle it. If it's a string from DB, this converts it.
+        // The .toString() in the EJS ensures maximum JS precision is displayed.
+        volumeDiscount: parseFloat(tier.volumeDiscount) || 0,
         subscriptions: tier.subscriptions || {}
       };
+      // Optional: Log the raw discount value for debugging precision issues
+      // console.log(`Tier ${tier.id} raw discount from DB:`, tier.volumeDiscount, "Processed:", processedTier.volumeDiscount);
+      return processedTier;
     });
 
     // Process currencies - GBP is the base currency but editable
@@ -953,7 +956,6 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     let currencies = {
       GBP: 1.0 // Default base value
     };
-
     // If we have existing rates, use them
     if (currenciesDoc?.rates) {
       currencies = {
@@ -992,9 +994,10 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       activeStep: req.query.step ? parseInt(req.query.step) : 1,
       message: req.query.message || null
     });
-
   } catch (err) {
     console.error("Error loading admin data:", err);
+    // ... (error handling) ...
+    // Make sure error response also initializes these objects to prevent template errors
     res.status(500).render("admin", {
       discountRules: {
         commitments: [],
@@ -1023,6 +1026,116 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       message: "Error loading configuration data",
       baseCurrency: 'GBP'
     });
+  }
+});
+
+// ... (other routes) ...
+
+// POST /admin/updateVolumePricing - Ensure precision when handling discount
+app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const { tiers = {} } = req.body;
+    const updateOps = [];
+
+    // Get base prices and currency rates for calculations
+    const [basePricesResponse, currenciesResponse] = await Promise.all([
+      volumePricingContainer.items.query({
+        query: "SELECT * FROM c WHERE c.id = @id",
+        parameters: [{ name: "@id", value: "BasePrices" }]
+      }).fetchAll(),
+      currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll() // Use currenciesContainer here
+    ]);
+
+    const basePrices = basePricesResponse.resources[0]?.subscriptions || {};
+    const currenciesDoc = currenciesResponse.resources[0];
+    let currencies = {
+      GBP: 1.0,
+      USD: 1.3,
+      EUR: 1.15
+    };
+    if (currenciesDoc?.rates) {
+      currencies = {
+        GBP: parseFloat(currenciesDoc.rates.GBP) || 1.0,
+        USD: parseFloat(currenciesDoc.rates.USD) || 1.3,
+        EUR: parseFloat(currenciesDoc.rates.EUR) || 1.15
+      };
+    }
+
+    // Process each tier
+    for (const tierId in tiers) {
+      const tierData = tiers[tierId];
+      const userCount = parseInt(tierData.userCount);
+
+      // Determine volume discount - either from form or calculated from GBP price
+      let volumeDiscountDecimal;
+      if (tierData.volumeDiscount !== undefined) {
+        // --- CRITICAL: Parse the discount percentage with maximum available precision ---
+        // The form now sends the discount as a percentage string using .toString() (e.g., "15.12345678901234567890" or "15")
+        const discountPercentStr = tierData.volumeDiscount;
+        const discountPercent = parseFloat(discountPercentStr); // Parse the string percentage
+        if (isNaN(discountPercent)) {
+            console.warn(`Invalid discount percentage received for tier ${tierId}: ${discountPercentStr}. Defaulting to 0.`);
+            volumeDiscountDecimal = 0;
+        } else {
+            // Convert percentage to decimal with maximum available JS precision
+            // parseFloat result might already be limited by JS number precision.
+            volumeDiscountDecimal = discountPercent / 100;
+            // Ensure discount is between 0 and 1 (100%)
+            volumeDiscountDecimal = Math.max(0, Math.min(1, volumeDiscountDecimal));
+        }
+        console.log(`Tier ${tierId}: Received discount string: ${discountPercentStr}, Parsed decimal: ${volumeDiscountDecimal}`);
+        // ---
+      } else {
+        // Calculate discount from GBP price if available (fallback logic)
+        const gbpPrice = parseFloat(tierData.subscriptions.GBP) || 0;
+        const baseGbpPrice = basePrices.GBP || 0;
+        if (userCount > 0 && baseGbpPrice > 0) {
+          volumeDiscountDecimal = 1 - (gbpPrice / (baseGbpPrice * userCount));
+          // Ensure discount is between 0 and 1
+          volumeDiscountDecimal = Math.max(0, Math.min(1, volumeDiscountDecimal));
+        } else {
+          volumeDiscountDecimal = 0;
+        }
+      }
+
+
+      const update = {
+        id: tierData.id,
+        userCount: userCount,
+        volumeDiscount: volumeDiscountDecimal, // Store the precise decimal
+        subscriptions: {}
+      };
+
+      // Process each currency price
+      for (const currency in tierData.subscriptions) {
+        if (currency === 'GBP') {
+          // For GBP, use the directly edited value
+          update.subscriptions[currency] = parseFloat(tierData.subscriptions[currency]);
+        } else {
+          // For other currencies, calculate based on GBP and currency rates
+          const gbpPrice = parseFloat(tierData.subscriptions.GBP);
+          // Ensure rates are numbers
+          const gbpRate = parseFloat(currencies.GBP) || 1.0;
+          const currencyRate = parseFloat(currencies[currency]) || 1.0;
+          if (gbpRate > 0) { // Avoid division by zero
+              const rate = currencyRate / gbpRate;
+              update.subscriptions[currency] = parseFloat((gbpPrice * rate).toFixed(2));
+          } else {
+              update.subscriptions[currency] = 0;
+              console.warn(`GBP rate is zero or invalid when calculating ${currency} price for tier ${tierId}.`);
+          }
+        }
+      }
+
+      updateOps.push(volumePricingContainer.items.upsert(update));
+    }
+
+    await Promise.all(updateOps);
+    res.redirect("/admin?step=4&message=Volume pricing updated successfully");
+  } catch (err) {
+    console.error("Error updating volume pricing:", err);
+    // Include error message in redirect for debugging if needed
+    res.redirect("/admin?message=Error updating volume pricing: " + encodeURIComponent(err.message));
   }
 });
 
@@ -1160,30 +1273,29 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
 
 app.post("/admin/updateBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    const { subscriptions = {} } = req.body;
-    
-    // Convert string values to numbers
-    const processedSubscriptions = {};
-    for (const [currency, price] of Object.entries(subscriptions)) {
-      processedSubscriptions[currency] = parseFloat(price) || 0;
+    // Get the monthly prices from the form (new name)
+    const { monthlySubscriptions = {} } = req.body;
+    // Calculate annual prices from monthly prices
+    const processedAnnualSubscriptions = {};
+    for (const [currency, monthlyPriceStr] of Object.entries(monthlySubscriptions)) {
+        const monthlyPrice = parseFloat(monthlyPriceStr) || 0;
+        const annualPrice = monthlyPrice * 12;
+        processedAnnualSubscriptions[currency] = parseFloat(annualPrice.toFixed(2)); // Store annual with 2 decimals
     }
 
     const update = {
       id: "BasePrices",
       userCount: null,
       volumeDiscount: null,
-      subscriptions: processedSubscriptions
+      subscriptions: processedAnnualSubscriptions // Store the calculated annual prices
     };
-
     await volumePricingContainer.items.upsert(update);
-    
-    // After updating base prices, recalculate all volume tier prices
-    await recalculateVolumePrices(processedSubscriptions);
-    
+    // After updating base prices, recalculate all volume tier prices using annual prices
+    await recalculateVolumePrices(processedAnnualSubscriptions);
     res.redirect("/admin?step=4&message=Base prices updated and volume tiers recalculated");
   } catch (err) {
     console.error("Error updating base prices:", err);
-    res.redirect("/admin?message=Error updating base prices");
+    res.redirect("/admin?message=Error updating base prices: " + err.message); // Add error message
   }
 });
 
@@ -1498,77 +1610,198 @@ app.post("/calculate", async (req, res) => {
   const { amount, currency, commitmentDiscount, isCurrentSubscriber } = req.body;
   const numSubscribers = Number(amount);
 
-  let finalPrice = 0;
-  let usedVolumePricing = false;
-  let ppuValue = Number(0);
-  let discountMultiplier = 1;
+  // Input validation
+  if (isNaN(numSubscribers) || numSubscribers <= 0) {
+      return res.status(400).send("Invalid number of subscribers.");
+  }
+  if (!currency) {
+      return res.status(400).send("Currency is required.");
+  }
+
 
   try {
     const { resource: discountDoc } = await discountContainer
       .item("discount-rules", "rules")
       .read();
 
-    const commitmentPercent = parseFloat(commitmentDiscount || 0) / 100;
-    const commitmentMultiplier = 1 - commitmentPercent;
+    if (!discountDoc) {
+        return res.status(500).send("Discount rules not found.");
+    }
 
-    const subscriberMultiplier = isCurrentSubscriber === "on"
-      ? 1 - (discountDoc.currentSubscriber || 0)
-      : 1;
+    const subscriberDiscount = isCurrentSubscriber === "on" ? (discountDoc.currentSubscriber || 0) : 0;
+    const baseSubscriberMultiplier = 1 - subscriberDiscount;
 
-    discountMultiplier = commitmentMultiplier * subscriberMultiplier;
+    // Fetch all commitment options
+    const commitmentOptions = Object.entries(discountDoc.commitments || {}).map(([key, value]) => ({
+      key,
+      label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
+      value: parseFloat(value),
+    }));
 
-    if (numSubscribers > 1000) {
-      // Volume pricing (annual price already)
+    // Validate selected commitment
+    const selectedCommitment = commitmentOptions.find(opt => opt.value === parseFloat(commitmentDiscount) / 100);
+    const selectedKey = selectedCommitment ? selectedCommitment.key : null;
+
+    // Fetch pricing data
+    let ppuValueRaw = 0; // Raw value fetched from DB
+    let usedVolumePricing = false;
+    let volumeBasePrice = 0;
+
+    if (numSubscribers >= 1000) { // Use >= for 1000+ users
       const { resources: tiers } = await volumePricingContainer.items
         .query({
           query: "SELECT * FROM c WHERE c.userCount >= @numUsers ORDER BY c.userCount ASC",
           parameters: [{ name: "@numUsers", value: numSubscribers }]
         })
         .fetchAll();
-
       if (tiers.length > 0) {
-        const selectedTier = tiers[0];
-        const volumeBasePrice = selectedTier.subscriptions[currency];
-
-        finalPrice = volumeBasePrice * discountMultiplier; // annual price after discount
+        volumeBasePrice = tiers[0].subscriptions[currency] || 0;
         usedVolumePricing = true;
       }
     }
 
     if (!usedVolumePricing) {
-      // PPU fallback (monthly price)
-      const ppuContainer = calcDatabase.container("PPUs");
-      const { resources: ppuDocs } = await ppuContainer.items
+      const { resources: ppuDocs } = await ppusContainer.items
         .query({ query: "SELECT * FROM c ORDER BY c.date DESC" })
         .fetchAll();
-
       const latestPPU = ppuDocs[0];
-      if (!latestPPU?.ppu?.[currency]?.standard) {
-        throw new Error(`No PPU found for currency ${currency}`);
-      }
-
-      ppuValue = latestPPU.ppu[currency].standard;
-      const basePrice = numSubscribers * ppuValue;
-
-      finalPrice = basePrice * discountMultiplier; // monthly price after discount
+      ppuValueRaw = latestPPU?.ppu?.[currency]?.standard || 0;
     }
 
-    // Pass these flags so the template can know if finalPrice is monthly or annual
-    res.render("result", {
-      price: Number(ppuValue), // Ensure this is a number
-      amount: Number(numSubscribers),
-      currency,
-      multi: Number((1 - discountMultiplier) * 100),
-      multipliedAmount: Number(finalPrice),
-      usedVolumePricing
+    // --- Robustly ensure ppuValue is a number for calculations ---
+    // Convert the potentially undefined/raw value to a number with a default fallback
+    const ppuValue = Number(ppuValueRaw); // This handles undefined, null, strings
+    if (isNaN(ppuValue)) {
+        console.warn(`ppuValueRaw '${ppuValueRaw}' could not be converted to a valid number for currency ${currency}. Defaulting to 0.`);
+    }
+    // --- End robust determination ---
+
+    // Calculate prices for all commitment options
+    const allPrices = commitmentOptions.map(option => {
+      const commitmentMultiplier = 1 - option.value;
+      const totalDiscountMultiplier = commitmentMultiplier * baseSubscriberMultiplier;
+      let annualPrice, monthlyPrice, pricePerUser;
+
+      if (usedVolumePricing) {
+        // Volume pricing is already annual
+        annualPrice = volumeBasePrice * totalDiscountMultiplier;
+        pricePerUser = annualPrice / numSubscribers;
+        monthlyPrice = annualPrice / 12;
+      } else {
+        // PPU-based: monthly base
+        // --- Use the robustly determined ppuValue (which is now guaranteed to be a number) ---
+        const baseMonthly = numSubscribers * ppuValue; // ppuValue is now a safe number
+        monthlyPrice = baseMonthly * totalDiscountMultiplier;
+        annualPrice = monthlyPrice * 12;
+        pricePerUser = monthlyPrice / numSubscribers;
+      }
+
+      return {
+        ...option,
+        monthlyPrice: Number(monthlyPrice.toFixed(2)),
+        annualPrice: Number(annualPrice.toFixed(2)),
+        pricePerUser: Number(pricePerUser.toFixed(4)),
+        isSelected: option.value === parseFloat(commitmentDiscount) / 100
+      };
     });
 
+    // Find the selected option for summary
+    const selectedOption = allPrices.find(p => p.isSelected) || allPrices[0];
+
+      // --- Pass the number-converted ppuValue to the template ---
+  res.render("result", {
+    amount: numSubscribers,
+    currency,
+    subscriberDiscount: Number(subscriberDiscount * 100),
+    usedVolumePricing,
+    ppuValue: usedVolumePricing ? 0 : (isNaN(ppuValue) ? 0 : ppuValue),
+    allPrices, // Keep this for the initial HTML render
+    // Add this line to pass data for JavaScript
+    allPricesForJS: JSON.stringify(allPrices), // Serialize for client-side use
+    selectedOption,
+  });
   } catch (err) {
     console.error("Calculation error:", err.message);
     res.status(500).send("Failed to calculate subscription price.");
   }
 });
 
+
+// POST /save-quote
+// This route handles saving the quote data sent from result.ejs
+app.post("/save-quote", async (req, res) => {
+  // Destructure data including the new QuoteCustomerEmail
+  const { QuoteCustomerName, QuotePrice, QuoteUserAmount, QuoteCurrency, QuoteCustomerEmail } = req.body;
+
+  try {
+    // 1. Basic validation
+    if (!QuoteCustomerName || !QuotePrice || !QuoteUserAmount || !QuoteCurrency || !QuoteCustomerEmail) {
+       return res.status(400).json({ message: "Missing required fields (Name, Price, Amount, Currency, Email)." });
+    }
+
+    // 2. Generate a random ID (e.g., 9-digit number)
+    const quoteId = Math.floor(Math.random() * 900000000) + 100000000; // Between 100000000 and 999999999
+
+    // 3. Get the Quotes container
+    const quotesContainer = customerDatabase.container("Quotes");
+
+    // 4. Construct the quote object (including the email)
+    const quoteToSave = {
+      id: quoteId.toString(), // Ensure ID is a string as Cosmos DB expects
+      QuoteCustomerName: QuoteCustomerName,
+      QuotePrice: QuotePrice, // Already formatted as string from client
+      QuoteUserAmount: QuoteUserAmount, // Already formatted as string from client
+      QuoteCurrency: QuoteCurrency,
+      QuoteCustomerEmail: QuoteCustomerEmail // Add the email to the saved data
+    };
+
+    // 5. Save the quote to Cosmos DB
+    const { resource: savedQuote } = await quotesContainer.items.upsert(quoteToSave);
+    console.log(`Quote saved successfully with ID: ${savedQuote.id}`);
+
+    // 6. Send email using Nodemailer
+    //    (Assuming transporter is configured like in /submit-form)
+    const transporter = nodemailer.createTransport({
+      service: 'gmail', // Or your email service
+      auth: {
+        user: process.env.EMAIL_USER, // Make sure these are set in your .env
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    // Determine the selected plan description for the email
+    const planDescription = req.body.QuoteUserAmount >= 1000 ? "Volume Pricing (Annual)" : "PPU-based Plan";
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // Sender address (your system email)
+      to: QuoteCustomerEmail,       // Recipient address (the one provided by the user)
+      subject: `Your Saved Quote (ID: ${quoteId})`,
+      html: `
+        <h2>Quote Details</h2>
+        <p><strong>Quote ID:</strong> ${quoteId}</p>
+        <p><strong>Customer Name:</strong> ${QuoteCustomerName}</p>
+        <p><strong>Selected Plan:</strong> ${planDescription}</p>
+        <p><strong>Annual Price:</strong> ${QuotePrice} ${QuoteCurrency}</p>
+        <p><strong>Number of Users:</strong> ${QuoteUserAmount}</p>
+        <p><strong>Currency:</strong> ${QuoteCurrency}</p>
+        <hr />
+        <p>This is an automated message containing your saved quote.</p>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Quote email sent successfully to ${QuoteCustomerEmail}`);
+
+    // 7. Send success response with the ID
+    res.status(201).json({ message: "Quote saved and email sent successfully.", quoteId: savedQuote.id });
+
+  } catch (err) {
+    console.error("Error saving quote or sending email:", err.message);
+    // Send error response
+    // Differentiate between server errors and email errors if needed, but a 500 is generally okay
+    res.status(500).json({ message: "Failed to save quote or send email. Please try again later." });
+  }
+});
 
 
 
