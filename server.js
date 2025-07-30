@@ -487,7 +487,6 @@ app.get("/get-quote/:quoteId", async (req, res) => {
   try {
     const quotesContainer = customerDatabase.container("Quotes");
     const { resource: quote } = await quotesContainer.item(req.params.quoteId, req.params.quoteId).read();
-    
     if (!quote) {
       return res.status(404).json({ 
         success: false,
@@ -495,13 +494,13 @@ app.get("/get-quote/:quoteId", async (req, res) => {
         message: "No quote found with the provided code. Please check the code and try again."
       });
     }
-
     res.json({
       success: true,
-      customerContactName: quote.QuoteCustomerName || '',
+      customerContactName: quote.QuoteCustomerName || '', // Changed to match field name
       numUsers: quote.QuoteUserAmount || '',
       currency: quote.QuoteCurrency || '',
-      customerPrice: quote.QuotePrice || ''
+      QuotePrice: quote.QuotePrice || {}, // Include full price object
+      QuoteCustomerEmail: quote.QuoteCustomerEmail || '' // Include email
     });
   } catch (err) {
     console.error("Error fetching quote:", err);
@@ -883,13 +882,13 @@ app.post("/updateEmail", async (req, res) => {
 // GET /admin - Configuration editor
 app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    // Fetch all required data in parallel
+    // Fetch all required data in parallel (removed currenciesContainer fetch)
     const [
       discountRulesResponse,
       ppusResponse,
       volumePricingResponse,
-      basePricesResponse,
-      currenciesResponse
+      basePricesResponse
+      // currenciesResponse // Removed
     ] = await Promise.all([
       discountContainer.item("discount-rules", "rules").read(),
       ppusContainer.items.query("SELECT * FROM c ORDER BY c.date DESC").fetchAll(),
@@ -898,23 +897,22 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       }).fetchAll(),
       volumePricingContainer.items.query({
         query: "SELECT * FROM c WHERE c.id = 'BasePrices'"
-      }).fetchAll(),
-      currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll()
+      }).fetchAll()
+      // currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll() // Removed
     ]);
 
-    // Process discount rules
+    // Process discount rules (remains the same)
     const discountRules = discountRulesResponse.resource || {};
     if (discountRules.commitments) {
       discountRules.commitments = Object.entries(discountRules.commitments).map(([key, value]) => ({
         key,
         name: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
-        value: parseFloat(value) || 0 // Ensure number
+        value: parseFloat(value) || 0
       }));
     }
 
-    // Process PPUs (take the latest)
+    // Process PPUs (remains the same)
     const ppus = ppusResponse.resources[0]?.ppu || {};
-    // Ensure all standard/alternate values are numbers
     for (const currency in ppus) {
       if (ppus[currency]) {
         ppus[currency].standard = Number(ppus[currency].standard) || 0;
@@ -924,7 +922,7 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       }
     }
 
-    // Process base prices
+    // Process base prices (remains the same)
     const basePrices = basePricesResponse.resources[0] || {
       id: "BasePrices",
       subscriptions: {
@@ -934,50 +932,24 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       }
     };
 
-    // Process volume pricing tiers - Ensure precision for volumeDiscount
+    // Process volume pricing tiers (remains mostly the same, just removed logging)
     const volumePricing = volumePricingResponse.resources.map(tier => {
-      // Ensure all required fields exist and volumeDiscount is handled precisely
       const processedTier = {
         id: tier.id,
         userCount: tier.userCount,
-        // Ensure volumeDiscount is a number. If it's stored with high precision,
-        // parseFloat should handle it. If it's a string from DB, this converts it.
-        // The .toString() in the EJS ensures maximum JS precision is displayed.
         volumeDiscount: parseFloat(tier.volumeDiscount) || 0,
         subscriptions: tier.subscriptions || {}
       };
-      // Optional: Log the raw discount value for debugging precision issues
-      // console.log(`Tier ${tier.id} raw discount from DB:`, tier.volumeDiscount, "Processed:", processedTier.volumeDiscount);
+      // Removed console.log for precision debugging
       return processedTier;
     });
 
-    // Process currencies - GBP is the base currency but editable
-    const currenciesDoc = currenciesResponse.resources[0];
-    let currencies = {
-      GBP: 1.0 // Default base value
-    };
-    // If we have existing rates, use them
-    if (currenciesDoc?.rates) {
-      currencies = {
-        GBP: parseFloat(currenciesDoc.rates.GBP) || 1.0,
-        USD: parseFloat(currenciesDoc.rates.USD) || 1.3,
-        EUR: parseFloat(currenciesDoc.rates.EUR) || 1.15
-      };
-    } else {
-      // Default rates if none exist
-      currencies = {
-        GBP: 1.0,
-        USD: 1.3,
-        EUR: 1.15
-      };
-    }
-
-    // Calculate derived rates based on GBP
-    const derivedRates = {
-      GBP: currencies.GBP,
-      USD: currencies.USD / currencies.GBP, // Shows how many USD per GBP
-      EUR: currencies.EUR / currencies.GBP  // Shows how many EUR per GBP
-    };
+    // --- Removed all currencies/currenciesDoc/currenciesContainer logic ---
+    // const currenciesDoc = currenciesResponse.resources[0]; // Removed
+    // let currencies = { GBP: 1.0 }; // Removed
+    // if (currenciesDoc?.rates) { ... } // Removed
+    // const derivedRates = { ... }; // Removed
+    // --- End of Removed Logic ---
 
     res.render("admin", {
       discountRules: discountRules || {
@@ -986,9 +958,9 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       },
       ppus: ppus || {},
       volumePricing: volumePricing || [],
-      basePrices: basePrices,
-      currencies: derivedRates, // Send derived rates to view
-      rawCurrencies: currencies, // Send raw values for calculations
+      basePrices: basePrices, // Pass base prices directly
+      // currencies: derivedRates, // Removed
+      // rawCurrencies: currencies, // Removed
       message: req.query.message || null,
       baseCurrency: 'GBP',
       activeStep: req.query.step ? parseInt(req.query.step) : 1,
@@ -996,7 +968,6 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     });
   } catch (err) {
     console.error("Error loading admin data:", err);
-    // ... (error handling) ...
     // Make sure error response also initializes these objects to prevent template errors
     res.status(500).render("admin", {
       discountRules: {
@@ -1013,23 +984,14 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
           USD: 35
         }
       },
-      currencies: {
-        GBP: 1.0,
-        USD: 1.3,
-        EUR: 1.15
-      },
-      rawCurrencies: {
-        GBP: 1.0,
-        USD: 1.3,
-        EUR: 1.15
-      },
+      // currencies: { GBP: 1.0, USD: 1.3, EUR: 1.15 }, // Removed
+      // rawCurrencies: { GBP: 1.0, USD: 1.3, EUR: 1.15 }, // Removed
       message: "Error loading configuration data",
       baseCurrency: 'GBP'
     });
   }
 });
 
-// ... (other routes) ...
 
 // POST /admin/updateVolumePricing - Ensure precision when handling discount
 app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
@@ -1037,29 +999,14 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
     const { tiers = {} } = req.body;
     const updateOps = [];
 
-    // Get base prices and currency rates for calculations
-    const [basePricesResponse, currenciesResponse] = await Promise.all([
-      volumePricingContainer.items.query({
-        query: "SELECT * FROM c WHERE c.id = @id",
-        parameters: [{ name: "@id", value: "BasePrices" }]
-      }).fetchAll(),
-      currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll() // Use currenciesContainer here
-    ]);
+    // --- Fetch base prices only for calculations ---
+    const basePricesResponse = await volumePricingContainer.items.query({
+      query: "SELECT * FROM c WHERE c.id = @id",
+      parameters: [{ name: "@id", value: "BasePrices" }]
+    }).fetchAll();
 
     const basePrices = basePricesResponse.resources[0]?.subscriptions || {};
-    const currenciesDoc = currenciesResponse.resources[0];
-    let currencies = {
-      GBP: 1.0,
-      USD: 1.3,
-      EUR: 1.15
-    };
-    if (currenciesDoc?.rates) {
-      currencies = {
-        GBP: parseFloat(currenciesDoc.rates.GBP) || 1.0,
-        USD: parseFloat(currenciesDoc.rates.USD) || 1.3,
-        EUR: parseFloat(currenciesDoc.rates.EUR) || 1.15
-      };
-    }
+    // --- End of Fetch base prices ---
 
     // Process each tier
     for (const tierId in tiers) {
@@ -1070,18 +1017,14 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
       let volumeDiscountDecimal;
       if (tierData.volumeDiscount !== undefined) {
         // --- CRITICAL: Parse the discount percentage with maximum available precision ---
-        // The form now sends the discount as a percentage string using .toString() (e.g., "15.12345678901234567890" or "15")
         const discountPercentStr = tierData.volumeDiscount;
-        const discountPercent = parseFloat(discountPercentStr); // Parse the string percentage
+        const discountPercent = parseFloat(discountPercentStr);
         if (isNaN(discountPercent)) {
             console.warn(`Invalid discount percentage received for tier ${tierId}: ${discountPercentStr}. Defaulting to 0.`);
             volumeDiscountDecimal = 0;
         } else {
-            // Convert percentage to decimal with maximum available JS precision
-            // parseFloat result might already be limited by JS number precision.
             volumeDiscountDecimal = discountPercent / 100;
-            // Ensure discount is between 0 and 1 (100%)
-            volumeDiscountDecimal = Math.max(0, Math.min(1, volumeDiscountDecimal));
+            volumeDiscountDecimal = Math.max(0, Math.min(1, volumeDiscountDecimal)); // Clamp between 0 and 1
         }
         console.log(`Tier ${tierId}: Received discount string: ${discountPercentStr}, Parsed decimal: ${volumeDiscountDecimal}`);
         // ---
@@ -1091,13 +1034,11 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
         const baseGbpPrice = basePrices.GBP || 0;
         if (userCount > 0 && baseGbpPrice > 0) {
           volumeDiscountDecimal = 1 - (gbpPrice / (baseGbpPrice * userCount));
-          // Ensure discount is between 0 and 1
-          volumeDiscountDecimal = Math.max(0, Math.min(1, volumeDiscountDecimal));
+          volumeDiscountDecimal = Math.max(0, Math.min(1, volumeDiscountDecimal)); // Clamp
         } else {
           volumeDiscountDecimal = 0;
         }
       }
-
 
       const update = {
         id: tierData.id,
@@ -1106,35 +1047,27 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
         subscriptions: {}
       };
 
-      // Process each currency price
-      for (const currency in tierData.subscriptions) {
-        if (currency === 'GBP') {
-          // For GBP, use the directly edited value
-          update.subscriptions[currency] = parseFloat(tierData.subscriptions[currency]);
+      // --- Process each currency price using the fetched basePrices ---
+      for (const currency in basePrices) { // Iterate through base currencies
+        const basePriceForCurrency = basePrices[currency]; // Get base price for this currency
+        if (basePriceForCurrency !== undefined && basePriceForCurrency !== null) {
+          // Apply the formula: final price = (user count * base price) * (1 - volume discount)
+          const calculatedPrice = (userCount * basePriceForCurrency) * (1 - volumeDiscountDecimal);
+          update.subscriptions[currency] = parseFloat(calculatedPrice.toFixed(2)); // Store with 2 decimals
         } else {
-          // For other currencies, calculate based on GBP and currency rates
-          const gbpPrice = parseFloat(tierData.subscriptions.GBP);
-          // Ensure rates are numbers
-          const gbpRate = parseFloat(currencies.GBP) || 1.0;
-          const currencyRate = parseFloat(currencies[currency]) || 1.0;
-          if (gbpRate > 0) { // Avoid division by zero
-              const rate = currencyRate / gbpRate;
-              update.subscriptions[currency] = parseFloat((gbpPrice * rate).toFixed(2));
-          } else {
-              update.subscriptions[currency] = 0;
-              console.warn(`GBP rate is zero or invalid when calculating ${currency} price for tier ${tierId}.`);
-          }
+          // Handle case where base price for a currency might be missing
+          console.warn(`Base price for currency ${currency} not found. Setting price to 0.`);
+          update.subscriptions[currency] = 0;
         }
       }
+      // --- End of Process each currency ---
 
       updateOps.push(volumePricingContainer.items.upsert(update));
     }
-
     await Promise.all(updateOps);
     res.redirect("/admin?step=4&message=Volume pricing updated successfully");
   } catch (err) {
     console.error("Error updating volume pricing:", err);
-    // Include error message in redirect for debugging if needed
     res.redirect("/admin?message=Error updating volume pricing: " + encodeURIComponent(err.message));
   }
 });
@@ -1273,56 +1206,53 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
 
 app.post("/admin/updateBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    // Get the monthly prices from the form (new name)
     const { monthlySubscriptions = {} } = req.body;
-    // Calculate annual prices from monthly prices
     const processedAnnualSubscriptions = {};
     for (const [currency, monthlyPriceStr] of Object.entries(monthlySubscriptions)) {
         const monthlyPrice = parseFloat(monthlyPriceStr) || 0;
         const annualPrice = monthlyPrice * 12;
-        processedAnnualSubscriptions[currency] = parseFloat(annualPrice.toFixed(2)); // Store annual with 2 decimals
+        processedAnnualSubscriptions[currency] = parseFloat(annualPrice.toFixed(2));
     }
-
     const update = {
       id: "BasePrices",
       userCount: null,
       volumeDiscount: null,
-      subscriptions: processedAnnualSubscriptions // Store the calculated annual prices
+      subscriptions: processedAnnualSubscriptions
     };
     await volumePricingContainer.items.upsert(update);
-    // After updating base prices, recalculate all volume tier prices using annual prices
-    await recalculateVolumePrices(processedAnnualSubscriptions);
+
+    // Recalculate all volume tier prices using the NEW base prices
+    await recalculateVolumePrices(processedAnnualSubscriptions); // Pass new base prices
+
     res.redirect("/admin?step=4&message=Base prices updated and volume tiers recalculated");
   } catch (err) {
     console.error("Error updating base prices:", err);
-    res.redirect("/admin?message=Error updating base prices: " + err.message); // Add error message
+    res.redirect("/admin?message=Error updating base prices: " + err.message);
   }
 });
 
 async function recalculateVolumePrices(basePrices) {
   try {
-    // Get all volume pricing tiers
     const { resources: tiers } = await volumePricingContainer.items
       .query({
         query: "SELECT * FROM c WHERE c.userCount != null ORDER BY c.userCount ASC"
       })
       .fetchAll();
 
-    // Update each tier with recalculated prices
     const updatePromises = tiers.map(tier => {
       const newSubscriptions = {};
-      
-      // Calculate price for each currency: (basePrice * userCount) * (1 - discount)
+      // --- Use the passed basePrices object ---
       for (const [currency, basePrice] of Object.entries(basePrices)) {
-        newSubscriptions[currency] = (basePrice * tier.userCount) * (1 - tier.volumeDiscount);
+        // Apply formula: final price = (user count * base price) * (1 - volume discount)
+        const calculatedPrice = (tier.userCount * basePrice) * (1 - tier.volumeDiscount);
+        newSubscriptions[currency] = parseFloat(calculatedPrice.toFixed(2));
       }
-
+      // --- End of using passed basePrices ---
       return volumePricingContainer.items.upsert({
         ...tier,
         subscriptions: newSubscriptions
       });
     });
-
     await Promise.all(updatePromises);
     console.log(`Successfully recalculated ${tiers.length} volume pricing tiers`);
   } catch (err) {
@@ -1330,52 +1260,10 @@ async function recalculateVolumePrices(basePrices) {
     throw err;
   }
 }
-
-// POST /admin/updateCurrencies
-app.post("/admin/updateCurrencies", /*requireOrderAdminOTP*/ async (req, res) => {
-  try {
-    const rates = req.body.rates;
-    
-    // Convert string values to numbers and ensure GBP is always 1.0
-    const processedRates = {
-      GBP: 1.0, // Force GBP to be 1.0 as it's our base
-      USD: parseFloat(rates.USD) || 1.3,
-      EUR: parseFloat(rates.EUR) || 1.15
-    };
-
-    // Get the latest document to update it
-    const { resources: existingDocs } = await currenciesContainer.items
-      .query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC")
-      .fetchAll();
-    
-    let update;
-    if (existingDocs.length > 0) {
-      // Update existing document
-      update = {
-        ...existingDocs[0],
-        rates: processedRates,
-        date: new Date().toISOString()
-      };
-    } else {
-      // Create new document if none exists
-      update = {
-        id: "exchange-rates",
-        date: new Date().toISOString(),
-        rates: processedRates
-      };
-    }
-
-    await currenciesContainer.items.upsert(update);
-    res.redirect("/admin?message=Exchange rates updated successfully");
-  } catch (err) {
-    console.error("Error updating exchange rates:", err);
-    res.redirect("/admin?message=Error updating exchange rates");
-  }
-});
-
 app.post("/admin/addVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
     const { userCount, volumeDiscount } = req.body;
+
     // Get base prices
     const { resources: basePricesDocs } = await volumePricingContainer.items
       .query({
@@ -1385,41 +1273,44 @@ app.post("/admin/addVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
     if (!basePricesDocs.length) {
       throw new Error("Base prices not found");
     }
-    const basePrices = basePricesDocs[0].subscriptions;
+    const basePrices = basePricesDocs[0].subscriptions; // Get base prices object
+
     const discountValue = parseFloat(volumeDiscount) / 100;
-    // Calculate prices for each currency
+
+    // Calculate prices for each currency using base prices
     const subscriptions = {};
     for (const [currency, basePrice] of Object.entries(basePrices)) {
-      subscriptions[currency] = (basePrice * userCount) * (1 - discountValue);
+      // Apply formula: final price = (user count * base price) * (1 - volume discount)
+      const calculatedPrice = (userCount * basePrice) * (1 - discountValue);
+      subscriptions[currency] = parseFloat(calculatedPrice.toFixed(2));
     }
+
     const newTier = {
       id: userCount.toString(),
       userCount: parseInt(userCount),
       volumeDiscount: discountValue,
       subscriptions
     };
+
     await volumePricingContainer.items.create(newTier);
-    
-    // Return updated list of tiers
+
     const { resources: updatedTiers } = await volumePricingContainer.items
       .query("SELECT * FROM c ORDER BY c.userCount ASC")
       .fetchAll();
-      
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "New volume pricing tier added successfully",
-      tiers: updatedTiers 
+      tiers: updatedTiers
     });
   } catch (err) {
     console.error("Error adding new volume tier:", err);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: "Error adding new volume pricing tier: " + err.message,
       details: err.message
     });
   }
 });
-
 // Updated delete endpoint with better error handling
 app.post("/admin/deleteVolumeTier", async (req, res) => {
   const { tierId } = req.body;
@@ -1730,79 +1621,96 @@ app.post("/calculate", async (req, res) => {
 // POST /save-quote
 // This route handles saving the quote data sent from result.ejs
 app.post("/save-quote", async (req, res) => {
-  // Destructure data including the new QuoteCustomerEmail
-  const { QuoteCustomerName, QuotePrice, QuoteUserAmount, QuoteCurrency, QuoteCustomerEmail } = req.body;
+    // Note: QuotePrice is now an object, not a string
+    const { QuoteCustomerName, QuotePrice, QuoteUserAmount, QuoteCurrency, QuoteCustomerEmail } = req.body;
+    
+    try {
+        // 1. Basic validation
+        if (!QuoteCustomerName || !QuotePrice || !QuoteUserAmount || !QuoteCurrency || !QuoteCustomerEmail) {
+            return res.status(400).json({ 
+                message: "Missing required fields (Name, Price, Amount, Currency, Email)." 
+            });
+        }
+        
+        // 2. Generate a random ID (e.g., 9-digit number)
+        const quoteId = Math.floor(Math.random() * 900000000) + 100000000; // Between 100000000 and 999999999
+        
+        // 3. Get the Quotes container
+        const quotesContainer = customerDatabase.container("Quotes");
+        
+        // 4. Construct the quote object (including the email)
+        const quoteToSave = {
+            id: quoteId.toString(), // Ensure ID is a string as Cosmos DB expects
+            QuoteCustomerName: QuoteCustomerName,
+            QuotePrice: QuotePrice, // Now an object with all commitment prices
+            QuoteUserAmount: QuoteUserAmount, // Already formatted as string from client
+            QuoteCurrency: QuoteCurrency,
+            QuoteCustomerEmail: QuoteCustomerEmail // Add the email to the saved data
+        };
 
-  try {
-    // 1. Basic validation
-    if (!QuoteCustomerName || !QuotePrice || !QuoteUserAmount || !QuoteCurrency || !QuoteCustomerEmail) {
-       return res.status(400).json({ message: "Missing required fields (Name, Price, Amount, Currency, Email)." });
+        // 5. Save the quote to Cosmos DB
+        const { resource: savedQuote } = await quotesContainer.items.upsert(quoteToSave);
+        console.log(`Quote saved successfully with ID: ${savedQuote.id}`);
+        
+        // 6. Send email using Nodemailer
+        // - FIX: Define the transporter inside the route -
+        const transporter = nodemailer.createTransport({
+            service: 'gmail', // Or your email service
+            auth: {
+                user: process.env.EMAIL_USER, // Make sure these are set in your .env
+                pass: process.env.EMAIL_PASS
+            }
+        });
+        console.log("Transporter object created:", transporter);
+        // - END FIX -
+        
+        // Create plan description for email
+        let planDescriptionHTML = "<p><strong>Available Plans:</strong></p><ul>";
+        if (QuotePrice && typeof QuotePrice === 'object') {
+            // Create a readable description of all plans
+            for (const [term, price] of Object.entries(QuotePrice)) {
+                planDescriptionHTML += `<li>${term}: <strong>${parseFloat(price).toFixed(2)} ${QuoteCurrency}</strong></li>`;
+            }
+        } else {
+             planDescriptionHTML += `<li>Custom Plan: <strong>${QuotePrice} ${QuoteCurrency}</strong></li>`;
+        }
+        planDescriptionHTML += "</ul>";
+
+        const mailOptions = {
+            from: process.env.EMAIL_USER, // Sender address (your system email)
+            to: QuoteCustomerEmail, // Recipient address (the one provided by the user)
+            subject: `Your Subscription Quote #${quoteId}`, // Subject line
+            html: `
+                <h2>Subscription Quote</h2>
+                <p>Thank you for your interest in our services.</p>
+                
+                <p><strong>Quote ID:</strong> ${quoteId}</p>
+                <p><strong>Customer Name:</strong> ${QuoteCustomerName}</p>
+                ${planDescriptionHTML}
+                <p><strong>Number of Users:</strong> ${QuoteUserAmount}</p>
+                <p><strong>Currency:</strong> ${QuoteCurrency}</p>
+                <hr />
+                <p>This is an automated message containing your saved quote.</p>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`Quote email sent successfully to ${QuoteCustomerEmail}`);
+        
+        // 7. Send success response with the ID
+        res.status(201).json({ 
+            message: "Quote saved and email sent successfully.", 
+            quoteId: savedQuote.id 
+        });
+    } catch (err) {
+        console.error("Error saving quote or sending email:", err.message);
+        // Send error response
+        // Differentiate between server errors and email errors if needed, but a 500 is generally okay
+        res.status(500).json({ 
+            message: "Failed to save quote or send email. Please try again later." 
+        });
     }
-
-    // 2. Generate a random ID (e.g., 9-digit number)
-    const quoteId = Math.floor(Math.random() * 900000000) + 100000000; // Between 100000000 and 999999999
-
-    // 3. Get the Quotes container
-    const quotesContainer = customerDatabase.container("Quotes");
-
-    // 4. Construct the quote object (including the email)
-    const quoteToSave = {
-      id: quoteId.toString(), // Ensure ID is a string as Cosmos DB expects
-      QuoteCustomerName: QuoteCustomerName,
-      QuotePrice: QuotePrice, // Already formatted as string from client
-      QuoteUserAmount: QuoteUserAmount, // Already formatted as string from client
-      QuoteCurrency: QuoteCurrency,
-      QuoteCustomerEmail: QuoteCustomerEmail // Add the email to the saved data
-    };
-
-    // 5. Save the quote to Cosmos DB
-    const { resource: savedQuote } = await quotesContainer.items.upsert(quoteToSave);
-    console.log(`Quote saved successfully with ID: ${savedQuote.id}`);
-
-    // 6. Send email using Nodemailer
-    //    (Assuming transporter is configured like in /submit-form)
-    const transporter = nodemailer.createTransport({
-      service: 'gmail', // Or your email service
-      auth: {
-        user: process.env.EMAIL_USER, // Make sure these are set in your .env
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    // Determine the selected plan description for the email
-    const planDescription = req.body.QuoteUserAmount >= 1000 ? "Volume Pricing (Annual)" : "PPU-based Plan";
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER, // Sender address (your system email)
-      to: QuoteCustomerEmail,       // Recipient address (the one provided by the user)
-      subject: `Your Saved Quote (ID: ${quoteId})`,
-      html: `
-        <h2>Quote Details</h2>
-        <p><strong>Quote ID:</strong> ${quoteId}</p>
-        <p><strong>Customer Name:</strong> ${QuoteCustomerName}</p>
-        <p><strong>Selected Plan:</strong> ${planDescription}</p>
-        <p><strong>Annual Price:</strong> ${QuotePrice} ${QuoteCurrency}</p>
-        <p><strong>Number of Users:</strong> ${QuoteUserAmount}</p>
-        <p><strong>Currency:</strong> ${QuoteCurrency}</p>
-        <hr />
-        <p>This is an automated message containing your saved quote.</p>
-      `
-    };
-
-    await transporter.sendMail(mailOptions);
-    console.log(`Quote email sent successfully to ${QuoteCustomerEmail}`);
-
-    // 7. Send success response with the ID
-    res.status(201).json({ message: "Quote saved and email sent successfully.", quoteId: savedQuote.id });
-
-  } catch (err) {
-    console.error("Error saving quote or sending email:", err.message);
-    // Send error response
-    // Differentiate between server errors and email errors if needed, but a 500 is generally okay
-    res.status(500).json({ message: "Failed to save quote or send email. Please try again later." });
-  }
 });
-
 
 
 // Start server

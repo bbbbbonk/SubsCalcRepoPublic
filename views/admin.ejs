@@ -209,7 +209,7 @@
                     value="<%= tier.subscriptions[currency].toFixed(2) %>"
                     step="0.01" min="0" class="calculated-price editable-gbp" data-currency="<%= currency %>" data-tier-id="<%= tier.id %>">
                 <% } else { %>
-                  <!-- Other currencies are calculated from GBP -->
+                  <!-- Other currencies are calculated from base prices and discount -->
                   <label><%= currency %> Total Price</label>
                   <input type="number" name="tiers[<%= tier.id %>][subscriptions][<%= currency %>]"
                     value="<%= tier.subscriptions[currency].toFixed(2) %>"
@@ -267,8 +267,8 @@
               <% }) %>
           <% } %>
           <div class="variable-card">
-              <h3>Current Subscriber Discount</h3>
-              <label>Additional Discount (%)</label>
+              <h3>Additional Discounts</h3>
+              <label>Discount Percentage</label>
               <!-- Use toString() for max precision -->
               <input type="number" name="currentSubscriber"
                   value="<%= (discountRules.currentSubscriber * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
@@ -293,10 +293,9 @@
     3: "Step 3: Edit Volume Pricing",
     4: "Step 4: Edit Discounts"
   };
-  // Initialize with the active step from server (now maps to new step order)
-  // The server-side activeStep logic might need adjustment if it relies on the old step numbers.
-  // For now, we assume it correctly maps to the new step 1 (PPUs) as the default.
+  // Initialize with the active step from server
   const activeStep = <%= activeStep || 1 %>;
+
   // Set up step navigation
   function setupStepNavigation() {
     // Set the current step title
@@ -305,6 +304,7 @@
     document.querySelectorAll('.step-container').forEach((container, index) => {
       container.style.display = (index + 1 === activeStep) ? 'block' : 'none';
     });
+
     // Next step navigation
     document.querySelectorAll('.next-step').forEach(button => {
       button.addEventListener('click', (e) => {
@@ -320,6 +320,7 @@
         window.history.pushState({ path: url.href }, '', url.href);
       });
     });
+
     // Previous step navigation
     document.querySelectorAll('.prev-step').forEach(button => {
       button.addEventListener('click', (e) => {
@@ -336,7 +337,8 @@
       });
     });
   }
-  // Tier deletion with AJAX to prevent page reload
+
+  // Tier deletion with AJAX
   function setupTierDeletion() {
     document.querySelectorAll('.delete-tier').forEach(button => {
       button.addEventListener('click', async (e) => {
@@ -358,7 +360,6 @@
               if (tierElement) {
                 tierElement.remove();
               }
-              // Show success message without leaving the page
               alert('Tier deleted successfully!');
               // Check if there are no tiers left and show appropriate message
               if (document.querySelectorAll('#volume-pricing-form .variable-card').length === 0) {
@@ -376,78 +377,81 @@
       });
     });
   }
+
   // Handle adding a new tier with AJAX
-function setupAddTier() {
-  const addTierForm = document.getElementById('add-tier-form');
-  const userCountInput = document.getElementById('new-tier-user-count');
-  const discountInput = document.getElementById('new-tier-discount');
-  const addTierButton = document.getElementById('add-tier-button');
-  // Update calculated prices when inputs change
-  function updateCalculatedPrices() {
-    const userCount = parseInt(userCountInput.value) || 0;
-    const discount = parseFloat(discountInput.value) || 0; // Parse as float
-    // Update calculated prices for each currency
-    document.querySelectorAll('.new-tier-calculated-price').forEach(input => {
-      const currency = input.getAttribute('data-currency');
-      // Get base price from the form (now the hidden annual input)
-      const basePriceInput = document.querySelector(`#base-prices-form input.base-annual-price-input[data-currency="${currency}"]`);
-      const basePrice = basePriceInput ? parseFloat(basePriceInput.value) || 0 : 0;
-      // Correct calculation: (user count * base price) * (1 - volume discount)
-      const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
-      input.value = calculatedPrice;
+  function setupAddTier() {
+    const addTierForm = document.getElementById('add-tier-form');
+    const userCountInput = document.getElementById('new-tier-user-count');
+    const discountInput = document.getElementById('new-tier-discount');
+    const addTierButton = document.getElementById('add-tier-button');
+
+    // Update calculated prices when inputs change
+    function updateCalculatedPrices() {
+      const userCount = parseInt(userCountInput.value) || 0;
+      const discount = parseFloat(discountInput.value) || 0; // Parse as float (percentage)
+
+      // Update calculated prices for each currency using base prices
+      document.querySelectorAll('.new-tier-calculated-price').forEach(input => {
+        const currency = input.getAttribute('data-currency');
+        // Get base annual price from the hidden input in the base prices form
+        const basePriceInput = document.querySelector(`#base-prices-form input.base-annual-price-input[data-currency="${currency}"]`);
+        const basePrice = basePriceInput ? parseFloat(basePriceInput.value) || 0 : 0;
+
+        // Apply formula: (user count * base price) * (1 - volume discount)
+        // Note: discount is expected to be a percentage (e.g., 7.85), so divide by 100
+        const calculatedPrice = (userCount * basePrice) * (1 - discount / 100);
+        input.value = calculatedPrice.toFixed(2);
+      });
+    }
+
+    // Add event listeners for input changes
+    userCountInput.addEventListener('input', updateCalculatedPrices);
+    discountInput.addEventListener('input', updateCalculatedPrices);
+
+    // Handle form submission
+    addTierForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!userCountInput.value || !discountInput.value) {
+        alert('Please fill in all fields');
+        return;
+      }
+      addTierButton.disabled = true;
+      addTierButton.textContent = 'Adding...';
+      try {
+        const formData = new FormData(addTierForm);
+        const data = {};
+        for (const [key, value] of formData) {
+          data[key] = value;
+        }
+        const response = await fetch('/admin/addVolumeTier', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert('New tier added successfully!');
+          window.location.reload(); // Reload to show new tier in the list
+        } else {
+          alert(`Error: ${result.message}`);
+        }
+      } catch (err) {
+        console.error('Error adding tier:', err);
+        alert('Failed to add new tier. Please try again.');
+      } finally {
+        addTierButton.disabled = false;
+        addTierButton.textContent = 'Add New Tier';
+      }
     });
   }
-  // Add event listeners for input changes
-  userCountInput.addEventListener('input', updateCalculatedPrices);
-  discountInput.addEventListener('input', updateCalculatedPrices);
-  // Handle form submission
-  addTierForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    // Validate inputs
-    if (!userCountInput.value || !discountInput.value) {
-      alert('Please fill in all fields');
-      return;
-    }
-    // Disable button to prevent multiple submissions
-    addTierButton.disabled = true;
-    addTierButton.textContent = 'Adding...';
-    try {
-      const formData = new FormData(addTierForm);
-      const data = {};
-      for (const [key, value] of formData) {
-        data[key] = value;
-      }
-      const response = await fetch('/admin/addVolumeTier', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      });
-      const result = await response.json();
-      if (result.success) {
-        // Show success message and refresh the page
-        alert('New tier added successfully!');
-        window.location.reload();
-      } else {
-        alert(`Error: ${result.message}`);
-      }
-    } catch (err) {
-      console.error('Error adding tier:', err);
-      alert('Failed to add new tier. Please try again.');
-    } finally {
-      // Re-enable the button
-      addTierButton.disabled = false;
-      addTierButton.textContent = 'Add New Tier';
-    }
-  });
-}
-  // "Save All Changes" button functionality with protection against multiple clicks
+
+  // "Save All Changes" button functionality
   function setupSaveAllButton() {
     const saveButton = document.getElementById('save-all-button');
     let isSaving = false;
     saveButton.addEventListener('click', async () => {
-      // Prevent multiple simultaneous saves
       if (isSaving) {
         return;
       }
@@ -456,10 +460,10 @@ function setupAddTier() {
       saveButton.textContent = 'Saving...';
       try {
         const forms = [
-          document.getElementById('ppus-form'),           // Step 1
-          document.getElementById('base-prices-form'),   // Step 2
-          document.getElementById('volume-pricing-form'), // Step 3
-          document.getElementById('discounts-form')      // Step 4
+          document.getElementById('ppus-form'),
+          document.getElementById('base-prices-form'),
+          document.getElementById('volume-pricing-form'),
+          document.getElementById('discounts-form')
         ];
         for (const form of forms) {
           if (!form) continue;
@@ -482,166 +486,204 @@ function setupAddTier() {
         }
         // After all forms are saved successfully, update the URL to show success
         const url = new URL(window.location.href);
-        url.searchParams.set('step', '4'); // Redirect to the last step (Discounts) after saving
+        url.searchParams.set('step', '4');
         if (url.searchParams.get('message')) {
           url.searchParams.set('message', 'All changes saved successfully!');
         } else {
           url.searchParams.append('message', 'All changes saved successfully!');
         }
-        // Update URL without reloading
         window.history.pushState({ path: url.href }, '', url.href);
-        // Show success message
         alert('All changes saved successfully!');
       } catch (error) {
         console.error('Save error:', error);
         alert(`Error saving changes: ${error.message}`);
       } finally {
-        // Reset the button state
         isSaving = false;
         saveButton.classList.remove('saving');
         saveButton.textContent = 'Save All Changes';
       }
     });
   }
+
   // Initialize calculations on page load
   function calculatePrices() {
     // --- Updated Base Price Calculation Logic (Monthly Input -> Annual Stored/Displayed) ---
-    // Listen for changes on the *monthly* base price inputs
     const baseMonthlyPriceInputs = document.querySelectorAll('#base-prices-form input[name^="monthlySubscriptions"]');
     baseMonthlyPriceInputs.forEach(input => {
-        // Trigger calculation on input change
         input.addEventListener('input', function() {
             const currency = this.name.match(/\[(.*?)\]/)[1];
             const monthlyPrice = parseFloat(this.value) || 0;
-            const calculatedAnnualPrice = (monthlyPrice * 12); // Calculate annual
-            // Update the hidden annual price input (this is what gets submitted)
+            const calculatedAnnualPrice = (monthlyPrice * 12);
             const annualPriceInput = document.querySelector(`#base-prices-form input.base-annual-price-input[data-currency="${currency}"]`);
             if (annualPriceInput) {
-                annualPriceInput.value = calculatedAnnualPrice.toFixed(2); // Store annual with 2 decimals
+                annualPriceInput.value = calculatedAnnualPrice.toFixed(2);
             }
-            // Update the displayed annual price for confirmation
             const annualPriceDisplay = document.querySelector(`#base-prices-form input.base-calculated-annual-price-display[data-currency="${currency}"]`);
             if (annualPriceDisplay) {
-                annualPriceDisplay.value = calculatedAnnualPrice.toFixed(2); // Display annual with 2 decimals
+                annualPriceDisplay.value = calculatedAnnualPrice.toFixed(2);
             }
-            // --- Also update related volume pricing calculations ---
-            // Find all volume pricing inputs for this currency
+
+            // --- Update related volume pricing calculations ---
             document.querySelectorAll(`#volume-pricing-grid input[data-currency="${currency}"]`).forEach(volumeInput => {
-                const tierId = volumeInput.getAttribute('data-tier-id');
-                if (tierId) {
-                    // Get user count and discount for this tier
-                    const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
-                    const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
-                    const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-                    const discount = discountInput ? parseFloat(discountInput.value) || 0 : 0; // Parse discount from input (already %)
-                    // Recalculate volume price using the NEW annual base price
-                    const calculatedVolumePrice = (userCount * calculatedAnnualPrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
-                    volumeInput.value = calculatedVolumePrice;
+                const tierCard = volumeInput.closest('.variable-card');
+                if (tierCard) {
+                    const tierId = tierCard.getAttribute('data-tier-id');
+                    if (tierId) {
+                        const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
+                        const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
+
+                        const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
+                        // Get discount as a percentage (e.g., 7.85) from the input
+                        const discountPercent = discountInput ? parseFloat(discountInput.value) || 0 : 0;
+                        // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
+                        const discountDecimal = discountPercent / 100;
+
+                        // Recalculate volume price using the NEW annual base price and current discount
+                        const calculatedVolumePrice = (userCount * calculatedAnnualPrice) * (1 - discountDecimal);
+                        volumeInput.value = calculatedVolumePrice.toFixed(2);
+                    }
                 }
             });
-            // --- Also update the new tier form calculations ---
+
+            // --- Update the new tier form calculations ---
             const newTierPriceInput = document.querySelector(`#add-tier-form input[data-currency="${currency}"]`);
             if (newTierPriceInput) {
                 const userCountInput = document.getElementById('new-tier-user-count');
                 const discountInput = document.getElementById('new-tier-discount');
                 const userCount = parseInt(userCountInput.value) || 0;
-                const discount = parseFloat(discountInput.value) || 0; // Parse discount from input (already %)
+                // Get discount as a percentage (e.g., 7.85) from the input
+                const discountPercent = parseFloat(discountInput.value) || 0;
+                // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
+                const discountDecimal = discountPercent / 100;
+
                 // Recalculate new tier price using the NEW annual base price
-                const calculatedNewTierPrice = (userCount * calculatedAnnualPrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
-                newTierPriceInput.value = calculatedNewTierPrice;
+                const calculatedNewTierPrice = (userCount * calculatedAnnualPrice) * (1 - discountDecimal);
+                newTierPriceInput.value = calculatedNewTierPrice.toFixed(2);
             }
         });
     });
-    // --- Keep the existing Volume Discount, User Count, and GBP Price change calculations ---
-    // They should work correctly as they read the *annual* base price from the hidden input or recalculate it.
-    // Volume discount calculation logic
-    document.querySelectorAll('#volume-pricing-form input[name$="[volumeDiscount]"]').forEach(discountInput => {
+
+    // --- Real-Time Volume Discount Calculation Logic ---
+    // This is the key part for real-time updates based on discount input
+    document.querySelectorAll('#volume-pricing-form input.discount-input').forEach(discountInput => {
         discountInput.addEventListener('input', function() {
-        const tierId = this.getAttribute('data-tier-id');
-        if (tierId) {
-          const discount = parseFloat(this.value) || 0; // Get discount % from input
-          const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
-          const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-          // Update all currency prices for this tier - read from hidden annual input
-          document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]').forEach(basePriceInput => {
-            const currency = basePriceInput.name.match(/\[(.*?)\]/)[1];
-            const basePrice = parseFloat(basePriceInput.value) || 0;
-            // Correct calculation: (user count * base price) * (1 - volume discount)
-            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
-            const volumePriceInput = document.querySelector(`input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
-            if (volumePriceInput) {
-              volumePriceInput.value = calculatedPrice;
+            const tierId = this.getAttribute('data-tier-id');
+            if (tierId) {
+                // Get discount as a percentage (e.g., 7.85) from the input
+                const discountPercent = parseFloat(this.value) || 0;
+                // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
+                const discountDecimal = discountPercent / 100;
+
+                // Get user count for this tier
+                const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
+                const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
+
+                // Get base annual prices for all currencies from the hidden inputs
+                const basePriceInputs = document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]');
+                basePriceInputs.forEach(basePriceInput => {
+                    const currencyMatch = basePriceInput.name.match(/\[(.*?)\]/);
+                    if (currencyMatch) {
+                        const currency = currencyMatch[1];
+                        const basePrice = parseFloat(basePriceInput.value) || 0;
+
+                        // Apply formula: (user count * base price) * (1 - volume discount)
+                        const calculatedPrice = (userCount * basePrice) * (1 - discountDecimal);
+
+                        // Update the corresponding price input for this tier and currency
+                        const volumePriceInput = document.querySelector(`#volume-pricing-grid input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
+                        if (volumePriceInput) {
+                            // Format to 2 decimal places for display/storage
+                            volumePriceInput.value = calculatedPrice.toFixed(2);
+                        }
+                    }
+                });
             }
-          });
-        }
-      });
+        });
     });
-    // User count calculation logic
+
+    // --- User Count Real-Time Calculation Logic ---
     document.querySelectorAll('#volume-pricing-form input[name$="[userCount]"]').forEach(userCountInput => {
         userCountInput.addEventListener('input', function() {
-        const tierId = this.name.match(/tiers\[(\d+)\]/)?.[1];
-        if (tierId) {
-          const userCount = parseInt(this.value) || 0;
-          const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
-          const discount = discountInput ? parseFloat(discountInput.value) || 0 : 0; // Get discount % from input
-          // Update all currency prices for this tier - read from hidden annual input
-          document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]').forEach(basePriceInput => {
-            const currency = basePriceInput.name.match(/\[(.*?)\]/)[1];
-            const basePrice = parseFloat(basePriceInput.value) || 0;
-            // Correct calculation: (user count * base price) * (1 - volume discount)
-            const calculatedPrice = (userCount * basePrice * (1 - discount/100)).toFixed(2); // Calculation uses standard JS math
-            const volumePriceInput = document.querySelector(`input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
-            if (volumePriceInput) {
-              volumePriceInput.value = calculatedPrice;
+            const tierIdMatch = this.name.match(/tiers\[(\d+)\]/);
+            if (tierIdMatch) {
+                const tierId = tierIdMatch[1];
+                const userCount = parseInt(this.value) || 0;
+
+                // Get the current discount percentage for this tier
+                const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
+                // Get discount as a percentage (e.g., 7.85) from the input
+                const discountPercent = discountInput ? parseFloat(discountInput.value) || 0 : 0;
+                // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
+                const discountDecimal = discountPercent / 100;
+
+                // Get base annual prices for all currencies
+                const basePriceInputs = document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]');
+                basePriceInputs.forEach(basePriceInput => {
+                    const currencyMatch = basePriceInput.name.match(/\[(.*?)\]/);
+                    if (currencyMatch) {
+                        const currency = currencyMatch[1];
+                        const basePrice = parseFloat(basePriceInput.value) || 0;
+
+                        // Apply formula: (user count * base price) * (1 - volume discount)
+                        const calculatedPrice = (userCount * basePrice) * (1 - discountDecimal);
+
+                        // Update the corresponding price input for this tier and currency
+                        const volumePriceInput = document.querySelector(`input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
+                        if (volumePriceInput) {
+                            volumePriceInput.value = calculatedPrice.toFixed(2);
+                        }
+                    }
+                });
             }
-          });
-        }
-      });
+        });
     });
-    // GBP price change calculation logic - when GBP price is edited, update other currencies and volume discount
+
+    // --- GBP Price Change Calculation Logic (for backward compatibility) ---
+    // This updates the discount when GBP price is edited manually
     document.querySelectorAll('#volume-pricing-grid input[data-currency="GBP"].editable-gbp').forEach(gbpInput => {
         gbpInput.addEventListener('input', function() {
-        const tierId = this.getAttribute('data-tier-id');
-        if (tierId) {
-          const gbpPrice = parseFloat(this.value) || 0;
-          // Get user count for this tier
-          const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
-          const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-          // Get base GBP price - read from hidden annual input
-          const baseGbpPriceInput = document.querySelector('#base-prices-form input.base-annual-price-input[data-currency="GBP"]');
-          const baseGbpPrice = baseGbpPriceInput ? parseFloat(baseGbpPriceInput.value) || 0 : 0;
-          // Calculate volume discount: 1 - (editedPrice / (basePrice * userCount))
-          if (userCount > 0 && baseGbpPrice > 0) {
-            const calculatedDiscount = 1 - (gbpPrice / (baseGbpPrice * userCount));
-            const discountPercent = Math.max(0, Math.min(100, calculatedDiscount * 100)); // Clamp between 0 and 100
-            // Update the discount input with maximum JS precision using toString()
-            const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
-            if (discountInput) {
-              discountInput.value = discountPercent.toString(); // Use toString() for display
+            const tierId = this.getAttribute('data-tier-id');
+            if (tierId) {
+                const gbpPrice = parseFloat(this.value) || 0;
+                const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
+                const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
+                const baseGbpPriceInput = document.querySelector('#base-prices-form input.base-annual-price-input[data-currency="GBP"]');
+                const baseGbpPrice = baseGbpPriceInput ? parseFloat(baseGbpPriceInput.value) || 0 : 0;
+
+                let discountPercent = 0;
+                if (userCount > 0 && baseGbpPrice > 0) {
+                    // Calculate discount percentage: (1 - (editedPrice / (basePrice * userCount))) * 100
+                    const calculatedDiscountDecimal = 1 - (gbpPrice / (baseGbpPrice * userCount));
+                    discountPercent = Math.max(0, Math.min(100, calculatedDiscountDecimal * 100)); // Clamp and convert to %
+                }
+
+                // Update the discount input (displayed as percentage)
+                const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
+                if (discountInput) {
+                    discountInput.value = discountPercent.toString(); // Use toString() for display
+                }
+
+                // --- Trigger real-time update for other currencies based on the new discount ---
+                // This ensures EUR, USD etc. update when GBP is changed manually.
+                if (discountInput) {
+                     // Create a synthetic 'input' event to trigger the discount calculation logic
+                     const event = new Event('input', { bubbles: true });
+                     discountInput.dispatchEvent(event);
+                }
+                // --- End of Trigger ---
             }
-          }
-          // Update EUR and USD prices based on GBP and currency rates
-          <% Object.entries(basePrices.subscriptions).forEach(([currency, basePrice]) => { %>
-            <% if (currency !== 'GBP') { %>
-              const <%= currency.toLowerCase() %>Rate = <%= (rawCurrencies[currency] / rawCurrencies.GBP).toFixed(4) %>;
-              const <%= currency.toLowerCase() %>Price = (gbpPrice * <%= currency.toLowerCase() %>Rate).toFixed(2);
-              const <%= currency.toLowerCase() %>Input = document.querySelector(`input[name="tiers[${tierId}][subscriptions][<%= currency %>]"]`);
-              if (<%= currency.toLowerCase() %>Input) {
-                <%= currency.toLowerCase() %>Input.value = <%= currency.toLowerCase() %>Price;
-              }
-            <% } %>
-          <% }) %>
-        }
-      });
+        });
     });
     // --- End of Updated Base Price Calculation Logic ---
   }
-  // --- New Rounding Functions ---
+
+  // --- Rounding Functions ---
   function setupRounding() {
     const roundUpButton = document.getElementById('round-up-button');
     const roundDownButton = document.getElementById('round-down-button');
     const roundNearestButton = document.getElementById('round-nearest-button');
     const undoRoundingButton = document.getElementById('undo-rounding-button');
+
     // Initialize original prices map
     function initializeOriginalPrices() {
       document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]').forEach(input => {
@@ -651,6 +693,7 @@ function setupAddTier() {
         }
       });
     }
+
     function roundPrices(method) {
         const roundingBaseInputs = document.querySelectorAll('input[name="rounding-base"]');
         let roundingBase = 10; // Default
@@ -684,6 +727,7 @@ function setupAddTier() {
         });
         alert(`Prices rounded (${method}) to the nearest ${roundingBase}.`);
     }
+
     function undoRounding() {
       document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]').forEach(input => {
         const key = input.name;
@@ -693,6 +737,7 @@ function setupAddTier() {
       });
       alert('Rounding undone. Prices restored to original values.');
     }
+
     // Initialize original prices when page loads
     document.addEventListener('DOMContentLoaded', initializeOriginalPrices);
     if (roundUpButton) roundUpButton.addEventListener('click', () => roundPrices('up'));
@@ -700,14 +745,17 @@ function setupAddTier() {
     if (roundNearestButton) roundNearestButton.addEventListener('click', () => roundPrices('nearest'));
     if (undoRoundingButton) undoRoundingButton.addEventListener('click', undoRounding);
   }
+  // --- End of Rounding Functions ---
+
   // Initialize everything when page loads
   document.addEventListener('DOMContentLoaded', () => {
     setupStepNavigation();
     setupTierDeletion();
     setupAddTier();
     setupSaveAllButton();
-    calculatePrices();
+    calculatePrices(); // Initialize calculations
     setupRounding(); // Initialize rounding functionality
+
     // Handle message display from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');

@@ -19,16 +19,22 @@
         <option value="GBP">GBP</option>
       </select>
 
-      <label for="commitmentDiscount">Commitment Period:</label>
-      <select name="commitmentDiscount">
-        <% commitmentOptions.forEach(opt => { %>
-          <option value="<%= opt.value %>"><%= opt.label %> - <%= opt.value %>%</option>
-        <% }) %>
-      </select>
+      <!-- Display commitment options as static text, send default value -->
+      <label>Commitment Period Options:</label>
+      <div style="border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: #f9f9f9;">
+        <ul style="list-style-type: none; padding-left: 0;">
+          <% commitmentOptions.forEach(opt => { %>
+            <li><%= opt.label %> - <%= (opt.value).toFixed(1) %>% discount</li>
+          <% }) %>
+        </ul>
+      </div>
+      <!-- Hidden input to send a default or specific commitment discount -->
+      <!-- For this example, we'll use the first option's value, or 0 if none -->
+      <input type="hidden" name="commitmentDiscount" value="<%= (commitmentOptions.length > 0 ? commitmentOptions[0].value * 100 : 0) %>" />
 
       <label>
         <input type="checkbox" name="isCurrentSubscriber" />
-        Already a Subscriber? (<%= currentSubscriberDiscount %>% discount)
+        Eligible for discount? (<%= currentSubscriberDiscount %>% discount)
       </label>
 
       <div class="button-group">

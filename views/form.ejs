@@ -4,10 +4,55 @@
   <meta charset="UTF-8">
   <title><%= fieldConfigs.formTitle?.title || 'Order Form' %></title>
   <link rel="stylesheet" href="/styles.css">
-
   <style>
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.4);
+    }
 
+    .modal-content {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 500px;
+      border-radius: 5px;
+    }
 
+    .commitment-option {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .commitment-option:hover {
+      background-color: #f0f0f0;
+    }
+
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .close:hover,
+    .close:focus {
+      color: black;
+    }
   </style>
 </head>
 <body>
@@ -16,9 +61,7 @@
     <div class="progress-container">
       <div id="progressBar" class="progress-bar"></div>
     </div>
-    
     <form id="multiStepForm" action="/submit-form" method="POST">
-
       <!-- Step 1: Orderer Information -->
       <div class="step active">
         <fieldset>
@@ -26,17 +69,14 @@
             <%= fieldConfigs.ordererSectionTitle?.title || 'Orderer Information' %>
             <span class="info-icon" title="<%= tooltips.ordererInfo %>">i</span>
           </legend>
-          
           <input type="text" name="ordererName" 
                  placeholder="<%= fieldConfigs.ordererName?.placeholder || 'Name of the person making the order' %>" 
                  <%= fieldConfigs.ordererName?.required ? 'required' : '' %>>
-                 
           <input type="email" name="ordererEmail" 
                  placeholder="<%= fieldConfigs.ordererEmail?.placeholder || 'Email of the person making the order' %>" 
                  <%= fieldConfigs.ordererEmail?.required ? 'required' : '' %>>
         </fieldset>
       </div>
-
       <!-- Step 2: Partner Information -->
       <div class="step">
         <fieldset>
@@ -44,29 +84,23 @@
             <%= fieldConfigs.partnerSectionTitle?.title || 'Partner Information' %>
             <span class="info-icon" title="<%= tooltips.partnerInfo %>">i</span>
           </legend>
-          
           <input type="text" name="partnerCompany" 
                  placeholder="<%= fieldConfigs.partnerCompany?.placeholder || 'Partner company name' %>" 
                  <%= fieldConfigs.partnerCompany?.required ? 'required' : '' %>>
-                 
           <input type="text" name="partnerSignatory" 
                  placeholder="<%= fieldConfigs.partnerSignatory?.placeholder || 'Partner signatory name, position and email' %>" 
                  <%= fieldConfigs.partnerSignatory?.required ? 'required' : '' %>>
-                 
           <input type="text" name="partnerContactName" 
                  placeholder="<%= fieldConfigs.partnerContactName?.placeholder || 'Partner contact name' %>" 
                  <%= fieldConfigs.partnerContactName?.required ? 'required' : '' %>>
-                 
           <input type="tel" name="partnerContactPhone" 
                  placeholder="<%= fieldConfigs.partnerContactPhone?.placeholder || 'Partner contact phone number' %>" 
                  <%= fieldConfigs.partnerContactPhone?.required ? 'required' : '' %>>
-                 
           <input type="email" name="partnerContactEmail" 
                  placeholder="<%= fieldConfigs.partnerContactEmail?.placeholder || 'Partner contact email' %>" 
                  <%= fieldConfigs.partnerContactEmail?.required ? 'required' : '' %>>
         </fieldset>
       </div>
-
       <!-- Step 3: Customer Information -->
       <div class="step">
         <fieldset>
@@ -74,38 +108,30 @@
             <%= fieldConfigs.customerSectionTitle?.title || 'Customer Information' %>
             <span class="info-icon" title="<%= tooltips.customerInfo %>">i</span>
           </legend>
-
               <div class="import-quote-container">
                 <input type="text" id="quoteCodeInput" placeholder="Enter quote code">
                 <button type="button" id="importQuoteBtn" class="secondary-button">Import Quote from Code</button>
               </div>
-
           <input type="text" name="customerCompany" 
                  placeholder="<%= fieldConfigs.customerCompany?.placeholder || 'Customer company name' %>" 
                  <%= fieldConfigs.customerCompany?.required ? 'required' : '' %>>
-                 
           <input type="text" name="customerAddress" 
                  placeholder="<%= fieldConfigs.customerAddress?.placeholder || 'Registered address' %>" 
                  <%= fieldConfigs.customerAddress?.required ? 'required' : '' %>>
-                 
           <input type="text" name="customerBusinessNumber" 
                  placeholder="<%= fieldConfigs.customerBusinessNumber?.placeholder || 'Business number' %>" 
                  <%= fieldConfigs.customerBusinessNumber?.required ? 'required' : '' %>>
-                 
           <input type="text" id="customerContactName" name="customerContactName" 
                  placeholder="<%= fieldConfigs.customerContactName?.placeholder || 'Customer contact name' %>" 
                  <%= fieldConfigs.customerContactName?.required ? 'required' : '' %>>
-                 
           <input type="email" name="customerContactEmail" 
                  placeholder="<%= fieldConfigs.customerContactEmail?.placeholder || 'Customer contact email' %>" 
                  <%= fieldConfigs.customerContactEmail?.required ? 'required' : '' %>>
-                 
           <input type="tel" name="customerContactPhone" 
                  placeholder="<%= fieldConfigs.customerContactPhone?.placeholder || 'Customer contact phone number' %>" 
                  <%= fieldConfigs.customerContactPhone?.required ? 'required' : '' %>>
         </fieldset>
       </div>
-
       <!-- Step 4: Subscription Information -->
       <div class="step">
         <fieldset>
@@ -113,11 +139,9 @@
             <%= fieldConfigs.subscriptionSectionTitle?.title || 'Fresh Subscription' %>
             <span class="info-icon" title="<%= tooltips.subscriptionInfo %>">i</span>
           </legend>
-          
           <input type="number" id="numUsers" name="numUsers" min="1" 
                  placeholder="<%= fieldConfigs.numUsers?.placeholder || 'Number of users' %>" 
                  <%= fieldConfigs.numUsers?.required ? 'required' : '' %>>
-                 
           <select id="currency" class="currencyDropdown" name="currency" 
                  <%= fieldConfigs.currency?.required ? 'required' : '' %>>
             <option value="" disabled selected>
@@ -127,25 +151,20 @@
             <option value="EUR">EUR</option>
             <option value="USD">USD</option>
           </select>
-          
           <input type="number" id="customerPrice" step="0.01" name="customerPrice" 
                  placeholder="<%= fieldConfigs.customerPrice?.placeholder || 'Customer price' %>" 
                  <%= fieldConfigs.customerPrice?.required ? 'required' : '' %>>
-                 
           <input type="date" name="startDate" 
                  placeholder="<%= fieldConfigs.startDate?.placeholder || 'Start date' %>" 
                  <%= fieldConfigs.startDate?.required ? 'required' : '' %>>
-                 
           <input type="text" name="initialTerm" 
                  placeholder="<%= fieldConfigs.initialTerm?.placeholder || 'Initial term (months)' %>" 
                  <%= fieldConfigs.initialTerm?.required ? 'required' : '' %>>
-                 
           <input type="url" name="tenantURL" 
                  placeholder="<%= fieldConfigs.tenantURL?.placeholder || 'Client tenant URL' %>" 
                  <%= fieldConfigs.tenantURL?.required ? 'required' : '' %>>
         </fieldset>
       </div>
-
       <!-- Navigation Buttons -->
       <div class="navigation-buttons">
         <a href="/" id="returnBtn" class="secondary-button" style="display: none;">Return</a>
@@ -153,91 +172,164 @@
         <button type="button" id="nextBtn" class="primary-button">Next</button>
         <button type="submit" id="submitBtn" class="primary-button" style="display: none;">Submit</button>
       </div>
-
       <div class="step-indicator">
         Step <span id="stepNumber">1</span> of <span id="totalSteps">4</span>
       </div>
     </form>
-    
     <div style="color: red; font-weight: bold; margin-top: 20px;">
       Session expires in: <span id="session-timer"></span>
     </div>
   </div>
 
-  <script>
+  <!-- Commitment Period Selection Modal -->
+  <div id="commitmentModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Select Commitment Period</h2>
+      <div id="commitmentOptions"></div>
+      <button id="confirmCommitmentBtn" class="primary-button">Confirm</button>
+    </div>
+  </div>
 
-document.getElementById('importQuoteBtn').addEventListener('click', async () => {
-  const quoteCode = document.getElementById('quoteCodeInput').value.trim();
-  const importBtn = document.getElementById('importQuoteBtn');
-  
-  if (!quoteCode) {
-    showAlert('Please enter a quote code', 'error');
-    return;
-  }
+<script>
+  // Store the fetched quote data
+  let currentQuoteData = null;
 
-  try {
-    importBtn.disabled = true;
-    importBtn.textContent = 'Loading...';
+  document.getElementById('importQuoteBtn').addEventListener('click', async () => {
+    const quoteCode = document.getElementById('quoteCodeInput').value.trim();
+    const importBtn = document.getElementById('importQuoteBtn');
     
-    const response = await fetch(`/get-quote/${quoteCode}`);
-    const data = await response.json();
-    
-    if (!response.ok || !data.success) {
-      throw new Error(data.message || 'Failed to import quote');
+    if (!quoteCode) {
+      showAlert('Please enter a quote code', 'error');
+      return;
     }
-
-    // Safely set values with null checks
-    const fieldsToSet = [
-      { selector: '#customerContactName', value: data.customerContactName },
-      { selector: '#numUsers', value: data.numUsers },
-      { selector: '#currency', value: data.currency },
-      { selector: '#customerPrice', value: data.customerPrice }
-    ];
-
-    fieldsToSet.forEach(field => {
-      const element = document.querySelector(field.selector);
-      if (element) {
-        element.value = field.value || '';
-      } else {
-        console.error(`Element not found: ${field.selector}`);
+    
+    try {
+      importBtn.disabled = true;
+      importBtn.textContent = 'Loading...';
+      
+      const response = await fetch(`/get-quote/${quoteCode}`);
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to import quote');
       }
+      
+      // Store the quote data for later use
+      currentQuoteData = data;
+      
+      // Show commitment period selection modal
+      showCommitmentModal(data.QuotePrice);
+      
+    } catch (error) {
+      console.error('Error importing quote:', error);
+      showAlert(error.message || 'Failed to import quote. Please check the code and try again.', 'error');
+    } finally {
+      importBtn.disabled = false;
+      importBtn.textContent = 'Import Quote from Code';
+    }
+  });
+
+  function showCommitmentModal(prices) {
+    const modal = document.getElementById('commitmentModal');
+    const optionsContainer = document.getElementById('commitmentOptions');
+    
+    // Clear previous options
+    optionsContainer.innerHTML = '';
+    
+    // Create radio buttons for each commitment period
+    Object.keys(prices).forEach(period => {
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.id = `period-${period.replace(/\s+/g, '-')}`;
+      radio.name = 'commitmentPeriod';
+      radio.value = period;
+      radio.className = 'commitment-option';
+      
+      const label = document.createElement('label');
+      label.htmlFor = `period-${period.replace(/\s+/g, '-')}`;
+      label.textContent = `${period}: ${prices[period]} ${currentQuoteData.QuoteCurrency || ''}`;
+      label.className = 'commitment-option';
+      
+      optionsContainer.appendChild(radio);
+      optionsContainer.appendChild(label);
     });
-
-    showAlert('Quote data imported successfully!', 'success');
-  } catch (error) {
-    console.error('Error importing quote:', error);
-    showAlert(error.message || 'Failed to import quote. Please check the code and try again.', 'error');
-  } finally {
-    importBtn.disabled = false;
-    importBtn.textContent = 'Import Quote from Code';
-  }
-});
-
-// Helper function to show alerts
-function showAlert(message, type) {
-  // Remove any existing alerts
-  const existingAlert = document.querySelector('.import-alert');
-  if (existingAlert) {
-    existingAlert.remove();
+    
+    // Select the first option by default
+    if (optionsContainer.firstChild) {
+      optionsContainer.firstChild.checked = true;
+    }
+    
+    modal.style.display = 'block';
   }
 
-  const alertDiv = document.createElement('div');
-  alertDiv.className = `import-alert alert-${type}`;
-  alertDiv.textContent = message;
-  
-  // Insert after the import container
-  const importContainer = document.querySelector('.import-quote-container');
-  importContainer.insertAdjacentElement('afterend', alertDiv);
-  
-  // Auto-remove after 5 seconds
-  setTimeout(() => {
-    alertDiv.remove();
-  }, 5000);
-}
+  // Close modal when clicking X
+  document.querySelector('.close').addEventListener('click', () => {
+    document.getElementById('commitmentModal').style.display = 'none';
+  });
+
+  // Close modal when clicking outside
+  window.addEventListener('click', (event) => {
+    const modal = document.getElementById('commitmentModal');
+    if (event.target === modal) {
+      modal.style.display = 'none';
+    }
+  });
+
+  // Handle confirmation
+  document.getElementById('confirmCommitmentBtn').addEventListener('click', () => {
+    const selectedRadio = document.querySelector('input[name="commitmentPeriod"]:checked');
+    
+    if (!selectedRadio) {
+      showAlert('Please select a commitment period', 'error');
+      return;
+    }
+    
+    const selectedPeriod = selectedRadio.value;
+    fillFormWithQuoteData(selectedPeriod);
+    
+    // Close modal
+    document.getElementById('commitmentModal').style.display = 'none';
+  });
+
+  function fillFormWithQuoteData(period) {
+    if (!currentQuoteData) return;
+    
+    // Extract year count from period string (e.g., "2 Year" -> 2)
+    const yearMatch = period.match(/(\d+)\s*Year/i);
+    const years = yearMatch ? parseInt(yearMatch[1]) : 1;
+    
+    // Fill form fields
+    document.getElementById('customerContactName').value = currentQuoteData.customerContactName || '';
+    document.getElementById('numUsers').value = currentQuoteData.numUsers || '';
+    document.getElementById('currency').value = currentQuoteData.currency || '';
+    document.getElementById('customerPrice').value = currentQuoteData.QuotePrice[period] || '';
+    document.querySelector('input[name="initialTerm"]').value = years * 12; // Convert years to months
+    
+    showAlert(`Quote data imported successfully with ${period} commitment!`, 'success');
+  }
+
+  // Helper function to show alerts
+  function showAlert(message, type) {
+    // Remove any existing alerts
+    const existingAlert = document.querySelector('.import-alert');
+    if (existingAlert) {
+      existingAlert.remove();
+    }
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `import-alert alert-${type}`;
+    alertDiv.textContent = message;
+    // Insert after the import container
+    const importContainer = document.querySelector('.import-quote-container');
+    importContainer.insertAdjacentElement('afterend', alertDiv);
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      alertDiv.remove();
+    }, 5000);
+  }
 
     // Session timer
     let secondsRemaining = 900;
-
     function updateTimer() {
       const minutes = Math.floor(secondsRemaining / 60);
       const seconds = secondsRemaining % 60;
@@ -250,13 +342,10 @@ function showAlert(message, type) {
         window.location.href = "/login";
       }
     }
-
     setInterval(updateTimer, 1000);
-
     // Form Wizard Functionality
     const steps = document.querySelectorAll('.step');
     let currentStep = 0;
-
     const prevBtn = document.getElementById('prevBtn');
     const nextBtn = document.getElementById('nextBtn');
     const submitBtn = document.getElementById('submitBtn');
@@ -265,42 +354,32 @@ function showAlert(message, type) {
     const totalSteps = document.getElementById('totalSteps');
     const progressBar = document.getElementById('progressBar');
     const form = document.getElementById('multiStepForm');
-
     form.addEventListener('submit', (event) => {
       if (!validateStep()) {
         event.preventDefault();
       }
     });
-
     totalSteps.textContent = steps.length;
-
     function updateProgress(index) {
       const percent = (index / (steps.length - 1)) * 100;
       progressBar.style.width = `${percent}%`;
     }
-
     function showStep(index) {
       steps.forEach((step, i) => {
         step.classList.toggle('active', i === index);
       });
       stepNumber.textContent = index + 1;
-
       const isFirst = index === 0;
       const isLast = index === steps.length - 1;
-
       prevBtn.style.display = isFirst ? 'none' : 'inline-block';
       returnBtn.style.display = isFirst ? 'inline-block' : 'none';
-      
       nextBtn.style.display = isLast ? 'none' : 'inline-block';
       submitBtn.style.display = isLast ? 'inline-block' : 'none';
-
       updateProgress(index);
     }
-
     function validateStep() {
       const inputs = steps[currentStep].querySelectorAll('input, select, textarea');
       let valid = true;
-      
       inputs.forEach(input => {
         if (!input.checkValidity()) {
           input.classList.add('show-error');
@@ -309,31 +388,25 @@ function showAlert(message, type) {
           input.classList.remove('show-error');
         }
       });
-
       if (!valid) {
         const firstInvalid = [...inputs].find(i => !i.checkValidity());
         firstInvalid?.reportValidity();
       }
-      
       return valid;
     }
-
     prevBtn.addEventListener('click', () => {
       if (currentStep > 0) {
         currentStep--;
         showStep(currentStep);
       }
     });
-
     nextBtn.addEventListener('click', () => {
       if (!validateStep()) return;
-      
       if (currentStep < steps.length - 1) {
         currentStep++;
         showStep(currentStep);
       }
     });
-
     // Initialize
     showStep(currentStep);
   </script>
