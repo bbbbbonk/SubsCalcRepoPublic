@@ -1,47 +1,96 @@
+/* --- CSS Variables for Dynamic Theming --- */
+:root {
+  /* --- Updated Default Theme Colors - Monochrome/Neutral --- */
+  --primary-color: #4a4a4a;        /* Main action color - Medium Grey */
+  --primary-hover-color: #2a2a2a;  /* Darker grey for hover */
+  --secondary-color: #ffffff;      /* White for secondary backgrounds */
+  --secondary-text-color: #4a4a4a; /* Match primary color for text on white */
+  --secondary-hover-color: #f0f0f0; /* Light grey for secondary hover */
+  --background-color: #f5f5f5;     /* Very light grey page background */
+  --container-color: #ffffff;      /* White for main content boxes */
+  --text-color: #333333;           /* Dark grey for main text */
+  --link-color: #4a4a4a;           /* Medium grey for links */
+  --link-hover-color: #2a2a2a;     /* Darker grey for link hover */
+  --info-icon-color: #6c757d;      /* Bootstrap secondary grey for info */
+  --info-icon-hover-color: #495057; /* Slightly darker info icon hover */
+  /* --- Other Structural Colors (Adjusted to be Neutral) --- */
+  --section-bg-color: #f8f9fa;       /* Very light grey */
+  --border-color: #dee2e6;           /* Light grey border */
+  --border-color-light: #c0c1c2;     /* Even lighter grey */
+  --border-color-dark: #525355;      /* Medium-light grey */
+  --table-header-bg-color: #e9ecef;  /* Light grey table header */
+  --pagination-bg-color: #e9ecef;    /* Light grey pagination */
+  --pagination-hover-bg-color: #dee2e6; /* Slightly darker pagination hover */
+  --tooltip-bg-color: #ffffff;       /* White tooltip */
+  --tooltip-border-color: #989899;   /* Light grey tooltip border */
+  --form-config-section-bg: #f8f9fa; /* Very light grey */
+  --form-config-field-bg: #f3f3f3;   /* White */
+  --form-config-border: #dee2e6;     /* Light grey */
+  --form-config-h2-color: #495057;   /* Darker grey for headings (OBSOLETE - now uses --primary-color) */
+  --form-config-h3-color: #495057;   /* Darker grey for subheadings */
+  --base-prices-section-bg: #f8f9fa; /* Very light grey */
+  --base-prices-section-border: #dee2e6; /* Light grey */
+  --base-prices-section-title-color: #495057; /* Darker grey (OBSOLETE - now uses --primary-color) */
+  --modal-bg-color: #ffffff;         /* White modal */
+  --modal-border-color: #ced4da;     /* Light grey modal border */
+  --price-row-hover-bg: #f8f9fa;     /* Very light grey */
+  --price-row-selected-bg: #e9ecef;  /* Light grey */
+  --price-row-selected-border: #6c757d; /* Bootstrap secondary grey */
+  --price-row-header-bg: #f1f3f5;    /* Light grey header */
+  --summary-bg-color: #f8f9fa;       /* Very light grey */
+  --summary-border-color: #dee2e6;   /* Light grey */
+  --save-quote-btn-bg: #6c757d;      /* Bootstrap secondary grey */
+  --save-quote-btn-hover-bg: #5a6268; /* Slightly darker */
+  --save-quote-message-color: #dc3545; /* Bootstrap danger red (kept for errors) */
+  /* Other Base Styles */
+  --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --border-radius: 8px;
+  --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  --box-shadow-strong: 0 8px 20px rgba(0, 0, 0, 0.15);
+  --transition-speed: 0.3s;
+}
+/* --- Base Styles Using Variables --- */
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f0f2f5;
+  font-family: var(--font-family);
+  background-color: var(--background-color);
   margin: 0;
   padding: 40px 0;
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  color: #333;
+  color: var(--text-color);
   flex-direction: column;
 }
-
 .container,
 .indexContainer {
-  background-color: #fff;
+  background-color: var(--container-color);
   padding: 25px 30px;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
   width: 100%;
   max-width: 900px;
   box-sizing: border-box;
 }
-
-.container{
-    margin-top: 20px;
-}
+/* Removed redundant .container rule */
 .indexContainer {
   max-width: 400px;
 }
-
 h1 {
   text-align: center;
   margin-bottom: 1rem;
-  color: #cc3180;
+  color: var(--primary-color);
 }
-
+/* --- Added Rule: Make h2 use the same color as h1 --- */
+h2 {
+  color: var(--primary-color);
+}
 form {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
   padding: 10px;
 }
-
 fieldset {
   border: none;
   padding: 0;
@@ -49,39 +98,34 @@ fieldset {
   grid-template-columns: 1fr;
   gap: 10px;
 }
-
 legend {
   font-weight: 600;
   margin-bottom: 0.5rem;
-  color: #444;
-  border-bottom: 1px solid #ccc;
+  color: var(--border-color-dark);
+  border-bottom: 1px solid var(--border-color-light);
   padding-bottom: 4px;
   font-size: 1.1rem;
 }
-
 input {
   padding: 10px 12px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--border-radius);
   font-size: 0.95rem;
-  transition: border-color 0.3s ease;
+  transition: border-color var(--transition-speed) ease;
 }
-
 input:focus {
-  border-color: #cc3180;
+  border-color: var(--primary-color);
   outline: none;
 }
-
 .button-group {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
 .info-icon {
   display: inline-block;
   margin-left: 8px;
-  background-color: #cc3180;
+  background-color: var(--info-icon-color);
   color: #fff;
   font-size: 0.75rem;
   font-weight: bold;
@@ -91,156 +135,165 @@ input:focus {
   text-align: center;
   border-radius: 50%;
   cursor: help;
-  transition: background-color 0.3s ease;
+  transition: background-color var(--transition-speed) ease;
   vertical-align: middle;
 }
-
 .info-icon:hover {
-  background-color: #a02666;
+  background-color: var(--info-icon-hover-color);
 }
-
-.tooltip-form { margin-top: 2rem; }
+.tooltip-form {
+  margin-top: 2rem;
+}
 .tooltip-form textarea {
   width: 100%;
   min-height: 60px;
   margin-bottom: 1rem;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color-light);
   border-radius: 4px;
 }
 .tooltip-form label {
   font-weight: bold;
   margin-top: 0.5rem;
 }
- 
-button,
-.secondary-button {
-  background-color: #cc3180;
-  color: white;
+/* --- Added Generic 'button' rule, styled like primary-button --- */
+button {
+  /* Inherit common button styles */
   padding: 16px 24px;
   font-weight: 600;
   font-size: 1.2rem;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--border-radius);
   cursor: pointer;
   text-decoration: none;
   text-align: center;
-  transition: background-color 0.3s ease;
+  transition: background-color var(--transition-speed) ease;
+  /* Specific primary button styles */
+  background-color: var(--primary-color);
+  color: white;
 }
-
-.secondary-button{
-  background-color: white;
-  color:#cc3180;
-  border:1px solid #cc3180;
+button:hover {
+  background-color: var(--primary-hover-color);
 }
-
-button:hover,
-.secondary-button:hover{
-  background-color: #a02666;
+/* Ensure explicitly styled buttons keep their intended styles */
+.primary-button,
+.secondary-button {
+  /* Common button styles are now also on 'button' */
+  padding: 16px 24px;
+  font-weight: 600;
+  font-size: 1.2rem;
+  border: none;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  transition: background-color var(--transition-speed) ease, opacity var(--transition-speed) ease;
 }
-
+.primary-button {
+  background-color: var(--primary-color);
+  color: white;
+}
+.primary-button:hover {
+  background-color: var(--primary-hover-color);
+  /* opacity: 0.8; */ /* Removed as it conflicts with specific hover colors */
+}
+.secondary-button {
+  background-color: var(--secondary-color);
+  color: var(--secondary-text-color);
+  border: 1px solid var(--secondary-text-color);
+}
+.secondary-button:hover {
+  background-color: var(--secondary-hover-color);
+  /* opacity: 0.8; */ /* Removed as it conflicts with specific hover colors */
+}
 .calcDiv,
 .resultDiv a {
   display: inline-block;
   margin-top: 25px;
   text-decoration: none;
-  background-color: #fff;
-  color: #cc3180;
+  background-color: var(--container-color);
+  color: var(--link-color);
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: var(--border-radius);
   font-weight: 600;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
   cursor: pointer;
 }
-
 .resultDiv a:hover {
-  background-color: #a02666;
+  background-color: var(--primary-hover-color);
   color: #fff;
 }
-
 .resultDiv {
-  background-color: #ffffff;
-  color: rgb(0, 0, 0);
+  background-color: var(--container-color);
+  color: var(--text-color);
   padding: 30px 40px;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-strong);
   max-width: 400px;
   width: 100%;
   text-align: center;
 }
-
 table {
   border-collapse: collapse;
   width: 100%;
 }
-
-th, td {
-  border: 1px solid #ccc;
+th,
+td {
+  border: 1px solid var(--border-color-light);
   padding: 8px;
   text-align: left;
 }
-
 th {
-  background-color: #f2f2f2;
+  background-color: var(--table-header-bg-color);
   height: 20px;
 }
-
 .OrderContainer {
-  background-color: #fff;
+  background-color: var(--container-color);
   padding: 25px 30px;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
   max-width: 95%;
   box-sizing: border-box;
   margin: 20px;
   overflow-x: auto;
 }
-
 .currencyDropdown {
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color-light);
   padding: 8px;
   text-align: left;
   border-radius: 6px;
 }
-
 .pagination {
   text-align: center;
   margin-top: 20px;
 }
-
 .pagination a,
 .pagination strong {
   display: inline-block;
   margin: 0 5px;
   padding: 8px 12px;
   text-decoration: none;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color-light);
   border-radius: 5px;
-  color: #333;
+  color: var(--text-color);
 }
-
 .pagination strong {
   font-weight: bold;
-  background-color: #eee;
+  background-color: var(--pagination-bg-color);
 }
-
 .pagination a:hover {
-  background-color: #ddd;
+  background-color: var(--pagination-hover-bg-color);
 }
-
 .pagination-form {
   margin: 10px 0;
   text-align: left;
 }
-
 .pagination-form label {
   margin-right: 5px;
 }
-
 .pagination-form select {
   padding: 5px;
 }
-
 .adminViews {
   position: fixed;
   bottom: 20px;
@@ -250,71 +303,61 @@ th {
   gap: 10px;
   z-index: 1000;
 }
-
 .adminButton {
-  background-color: #cc3180;
+  background-color: var(--primary-color);
   color: white;
   padding: 8px 12px;
   font-size: 0.9rem;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: background-color var(--transition-speed) ease;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
-
 .adminButton:hover {
-  background-color: #a02666;
+  background-color: var(--primary-hover-color);
 }
-
 .step {
   display: none;
 }
-
 .step.active {
   display: block;
 }
-
 .navigation-buttons {
   display: flex;
   justify-content: space-between;
   margin-top: 20px;
 }
-
 .step-indicator {
   text-align: center;
   margin-top: 10px;
   font-weight: bold;
-  color: #444;
+  color: var(--border-color-dark);
 }
 /* Progress Bar */
 .progress-container {
   width: 100%;
-  background-color: #eee;
+  background-color: #eee; /* Could be a variable if themeable */
   border-radius: 20px;
   margin-bottom: 20px;
   height: 10px;
   overflow: hidden;
 }
-
 .progress-bar {
   height: 100%;
   width: 0%;
-  background-color: #4CAF50;
+  background-color: #4CAF50; /* Could be a variable if themeable */
   transition: width 0.4s ease-in-out;
   border-radius: 20px;
 }
-
 /* Step transitions */
 .step {
   display: none;
   animation: fadeIn 0.4s ease-in-out;
 }
-
 .step.active {
   display: block;
 }
-
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -325,242 +368,392 @@ th {
     transform: translateX(0);
   }
 }
-input.show-error, select.show-error, textarea.show-error {
-  outline: 2px solid red;
+input.show-error,
+select.show-error,
+textarea.show-error {
+  outline: 2px solid red; /* Could be a variable if themeable */
 }
-
 input.show-error:invalid,
 select.show-error:invalid,
 textarea.show-error:invalid {
-  border: 2px solid red;
+  border: 2px solid red; /* Could be a variable if themeable */
   outline: none;
 }
-
-    .config-form {
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .section {
-      background-color: #f5f5f5;
-      padding: 15px;
-      margin-bottom: 25px;
-      border-radius: 5px;
-    }
-    .section h2 {
-      margin-top: 0;
-      color: #2c3e50;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 10px;
-    }
-    .field-config {
-      border: 1px solid #ddd;
-      padding: 15px;
-      margin-bottom: 20px;
-      border-radius: 5px;
-      background-color: white;
-    }
-    .field-config h3 {
-      margin-top: 0;
-      color: #333;
-    }
-    .form-group {
-      margin-bottom: 15px;
-    }
-    label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: bold;
-    }
-    input[type="text"], textarea {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    .required-checkbox {
-      display: flex;
-      align-items: center;
-    }
-    .required-checkbox input {
-      margin-right: 10px;
-    }
-    .alert {
-      padding: 10px;
-      background-color: #4CAF50;
-      color: white;
-      margin-bottom: 15px;
-      border-radius: 4px;
-    }
-    .button-group {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 20px;
-    }
-
-    .primary-button {
-  background-color: #cc3180;
+.config-form {
+  max-width: 800px;
+  margin: 0 auto;
+}
+.section {
+  background-color: var(--form-config-section-bg);
+  padding: 15px;
+  margin-bottom: 25px;
+  border-radius: 5px;
+}
+/* --- Modified Rule: Make .section h2 use the same color as h1 --- */
+.section h2 {
+  margin-top: 0;
+  /* Changed from var(--form-config-h2-color) to var(--primary-color) */
+  color: var(--primary-color);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 10px;
+}
+.field-config {
+  border: 1px solid var(--form-config-border);
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 5px;
+  background-color: var(--form-config-field-bg);
+}
+.field-config h3 {
+  margin-top: 0;
+  color: var(--form-config-h3-color);
+}
+.form-group {
+  margin-bottom: 15px;
+}
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.required-checkbox {
+  display: flex;
+  align-items: center;
+}
+.required-checkbox input {
+  margin-right: 10px;
+}
+.alert {
+  padding: 10px;
+  background-color: #4CAF50; /* Could be a variable if themeable */
   color: white;
-  padding: 16px 24px;
-  font-weight: 600;
-  font-size: 1.2rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  text-decoration: none;
-  text-align: center;
-  transition: background-color 0.3s ease;
-    }
-
-
-    .primary-button:hover, .secondary-button:hover {
-      opacity: 0.8;
-    }
-
-
-        .info-section {
-      margin-bottom: 2rem;
-      padding: 1rem;
-      background: #f8f9fa;
-      border-radius: 5px;
-    }
-    .info-section h2 {
-      margin-top: 0;
-      color: #2c3e50;
-    }
-    .info-field {
-      margin: 0.5rem 0;
-      padding: 0.5rem;
-      background: white;
-      border-left: 4px solid #3498db;
-    }
-    .required-field::after {
-      content: " *";
-      color: red;
-    }
-    .field-hint {
-      color: #666;
-      font-size: 0.9em;
-      margin-top: 0.25rem;
-    }
-
-    .import-quote-container {
+  margin-bottom: 15px;
+  border-radius: 4px;
+}
+/* Button group styles are already defined above */
+/* .primary-button styles are already defined above */
+/* Hover effect refined above */
+.info-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--tooltip-bg-color);
+  border-radius: 5px;
+}
+/* --- Modified Rule: Make .info-section h2 use the same color as h1 --- */
+.info-section h2 {
+  margin-top: 0;
+  /* Changed from var(--form-config-h2-color) to var(--primary-color) */
+  color: var(--primary-color);
+}
+.info-field {
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  background: var(--form-config-field-bg);
+  border-left: 4px solid var(--tooltip-border-color);
+}
+.required-field::after {
+  content: " *";
+  color: red; /* Could be a variable if themeable */
+}
+.field-hint {
+  color: #666; /* Could be a variable if themeable */
+  font-size: 0.9em;
+  margin-top: 0.25rem;
+}
+.import-quote-container {
   display: flex;
   gap: 10px;
   margin-bottom: 15px;
-  }
-
+}
 #importQuoteBtn {
   white-space: nowrap;
   padding: 10px;
-  font-size:15px;
+  font-size: 15px;
 }
-
 #quoteCodeInput {
   flex-grow: 1;
   padding: 8px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color-light);
   border-radius: 4px;
 }
-
-    .tab-container {
-      margin-bottom: 20px;
-    }
-    .tab-buttons {
-      display: flex;
-      margin-bottom: 10px;
-    }
-    .tab-button {
-      padding: 10px 20px;
-      background: #ffffff;
-      border: 1px solid #a02666;
-      color:#cc3180;
-      cursor: pointer;
-      margin-right: 5px;
-    }
-    .tab-button.active {
-      background: #ddd;
-      font-weight: bold;
-    }
-    .tab-content {
-      display: none;
-    }
-    .tab-content.active {
-      display: block;
-    }
-    .variable-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 15px;
-    }
-    .variable-card {
-      border: 1px solid #ddd;
-      padding: 15px;
-      border-radius: 5px;
-    }
-    .currency-row {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    .volume-tier {
-      margin-bottom: 20px;
-      padding: 10px;
-      border: 1px solid #eee;
-    }
-
+.tab-container {
+  margin-bottom: 20px;
+}
+.tab-buttons {
+  display: flex;
+  margin-bottom: 10px;
+}
+.tab-button {
+  padding: 10px 20px;
+  background: var(--form-config-field-bg);
+  border: 1px solid var(--primary-hover-color);
+  color: var(--primary-color);
+  cursor: pointer;
+  margin-right: 5px;
+}
+.tab-button.active {
+  background: var(--pagination-bg-color);
+  font-weight: bold;
+}
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
+}
+.variable-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 15px;
+}
+.variable-card {
+  border: 1px solid var(--border-color-light);
+  padding: 15px;
+  border-radius: 5px;
+}
+.currency-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.volume-tier {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #eee; /* Could be a variable if themeable */
+}
 .add-tier-form {
   margin-top: 2rem;
   padding: 1.5rem;
-  background: #f5f5f5;
+  background: var(--form-config-section-bg);
   border-radius: 8px;
 }
-
 .add-tier-form h3 {
   margin-top: 0;
 }
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
+/* .form-group styles are already defined above */
+/* .form-group label styles are already defined above */
+/* .form-group input styles are already defined above */
 .base-prices-section {
-  background-color: #f0f8ff;
+  background-color: var(--base-prices-section-bg);
   padding: 20px;
   border-radius: 8px;
   margin-bottom: 30px;
-  border: 1px solid #d0e3ff;
+  border: 1px solid var(--base-prices-section-border);
 }
-
+/* --- Modified Rule: Make .base-prices-section h2 use the same color as h1 --- */
 .base-prices-section h2 {
-  color: #2a5885;
+  /* Changed from var(--base-prices-section-title-color) to var(--primary-color) */
+  color: var(--primary-color);
   margin-top: 0;
 }
-
+/* Modal styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.4);
+}
+.modal-content {
+  background-color: var(--modal-bg-color);
+  margin: 15% auto;
+  padding: 20px;
+  border: 1px solid var(--modal-border-color);
+  width: 80%;
+  max-width: 500px;
+  border-radius: 5px;
+}
+.commitment-option {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin: 5px 0;
+  border: 1px solid var(--border-color-light);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.commitment-option:hover {
+  background-color: var(--price-row-hover-bg);
+}
+.close {
+  color: #aaa; /* Could be a variable if themeable */
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.close:hover,
+.close:focus {
+  color: black; /* Could be a variable if themeable */
+}
+/* - Updated Styles for Spaciousness and Width - */
+.resultDiv {
+  /* Make container wider and center it */
+  max-width: 800px;
+  width: 90%;
+  margin: 20px auto;
+  /* Increase internal padding */
+  padding: 40px 50px;
+  /* Slightly larger base font */
+  font-size: 1.1rem;
+  /* Keep existing styles */
+  background-color: var(--container-color);
+  color: var(--text-color);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow-strong);
+  box-sizing: border-box;
+  /* Include padding in width calculation */
+  text-align: left;
+  /* Change default text alignment */
+}
+.resultDiv h2 {
+  /* Larger heading */
+  font-size: 1.8rem;
+  text-align: center;
+  /* Keep heading centered */
+  margin-bottom: 25px;
+  /* Ensure h2 in resultDiv also uses primary color */
+  color: var(--primary-color);
+}
+.resultDiv h3 {
+  /* Larger sub-heading */
+  font-size: 1.4rem;
+  margin-top: 30px;
+  margin-bottom: 15px;
+}
+.resultDiv p {
+  /* Add some space below paragraphs */
+  margin-bottom: 12px;
+}
+.price-comparison {
+  /* Increase margin above and below the table */
+  margin: 30px 0 20px 0;
+  border: 1px solid var(--border-color-light);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.price-row {
+  display: flex;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee; /* Could be a variable */
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.price-row:hover {
+  background-color: var(--price-row-hover-bg);
+}
+.price-row.selected {
+  background-color: var(--price-row-selected-bg);
+  border-left: 4px solid var(--price-row-selected-border);
+}
+.price-row.header-row {
+  background-color: var(--price-row-header-bg);
+  font-weight: bold;
+  border-bottom: 2px solid var(--border-color-light);
+}
+.col-period {
+  flex: 2;
+}
+.col-discount,
+.col-monthly,
+.col-annual,
+.col-per-user {
+  flex: 1;
+  /* Ensure text alignment is right */
+  text-align: right;
+}
+.summary {
+  /* Increase margin and padding for the summary box */
+  margin: 30px 0;
+  padding: 25px;
+  background-color: var(--summary-bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--summary-border-color);
+  /* Subtle border */
+}
+.summary p {
+  /* Slightly larger font size in summary */
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
+/* - End Updated Styles - */
+/* - Save Quote Modal Styles - */
+/* .modal styles are already defined above */
+.modal-content {
+  background-color: var(--modal-bg-color);
+  margin: 15% auto;
+  /* 15% from the top and centered */
+  padding: 30px;
+  border: 1px solid var(--modal-border-color);
+  border-radius: 8px;
+  width: 80%;
+  max-width: 500px;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+  position: relative;
+}
+/* .close styles are already defined above */
+/* .close:hover, .close:focus styles are already defined above */
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+.modal-content label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+}
+.modal-content input[type="text"],
+.modal-content input[type="email"] {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+#saveQuoteMessage {
+  color: var(--save-quote-message-color);
+  margin-bottom: 15px;
+  display: none;
+}
+.save-quote-btn {
+  background-color: var(--save-quote-btn-bg);
+  color: white;
+  padding: 12px 24px;
+  margin: 20px 0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+.save-quote-btn:hover {
+  background-color: var(--save-quote-btn-hover-bg);
+}
+/* --- Removed old generic 'button' rule (now defined above) --- */
 /* Tablet styles (≤900px) */
 @media screen and (max-width: 900px) {
   body {
     padding: 20px 10px;
   }
-
   h1 {
     font-size: 1.75rem;
     text-align: center;
   }
-
+  h2 {
+    /* Ensure h2 responsiveness maintains the color */
+    color: var(--primary-color);
+  }
   .container,
   .config-form {
     width: 100%;
@@ -569,60 +762,53 @@ textarea.show-error:invalid {
     padding: 20px;
     border-radius: 10px;
   }
-
   .section {
     margin-bottom: 20px;
   }
-
-  .field-config > h3 {
+  .field-config>h3 {
     font-size: 1.1rem;
   }
-
   .form-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
   }
-
   .required-checkbox {
     flex-direction: row;
     align-items: center;
   }
-
   input[type="text"],
-  button,
   .primary-button,
-  .secondary-button {
+  .secondary-button,
+  button { /* Ensure generic button is responsive */
     width: 100%;
     font-size: 1rem;
     padding: 12px;
   }
-
   .button-group {
     flex-direction: column;
     gap: 15px;
   }
-
   .alert {
     font-size: 0.95rem;
     padding: 12px;
   }
 }
-
-
 /* Mobile styles (≤600px) */
 @media screen and (max-width: 600px) {
   body {
     padding: 10px 5px;
     font-size: 0.9rem;
   }
-
   h1 {
     font-size: 1.4rem;
     text-align: center;
     margin-bottom: 1rem;
   }
-
+  h2 {
+    /* Ensure h2 responsiveness maintains the color */
+    color: var(--primary-color);
+  }
   .container,
   .config-form {
     padding: 15px;
@@ -631,47 +817,38 @@ textarea.show-error:invalid {
     max-width: 100%;
     margin: 10px auto;
   }
-
   .section {
     margin-bottom: 15px;
   }
-
   .field-config {
     padding: 12px;
   }
-
-  .field-config > h3 {
+  .field-config>h3 {
     font-size: 1rem;
   }
-
   .form-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
-
   input[type="text"] {
     font-size: 0.9rem;
     padding: 10px;
   }
-
   .required-checkbox {
     flex-direction: row;
     gap: 6px;
   }
-
   .button-group {
     flex-direction: column;
     gap: 12px;
   }
-
-  button,
   .primary-button,
-  .secondary-button {
+  .secondary-button,
+  button { /* Ensure generic button is responsive */
     font-size: 0.95rem;
     padding: 12px;
   }
-
   .alert {
     font-size: 0.9rem;
     padding: 10px;

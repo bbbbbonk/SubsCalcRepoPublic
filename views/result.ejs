@@ -5,209 +5,73 @@
   <meta charset="UTF-8" />
   <title>Calculation Result</title>
   <link rel="stylesheet" href="/styles.css" />
-  <style>
-    /* - Updated Styles for Spaciousness and Width - */
-    .resultDiv {
-      /* Make container wider and center it */
-      max-width: 800px;
-      width: 90%;
-      margin: 20px auto;
-      /* Increase internal padding */
-      padding: 40px 50px;
-      /* Slightly larger base font */
-      font-size: 1.1rem;
-      /* Keep existing styles */
-      background-color: #ffffff;
-      color: rgb(0, 0, 0);
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-      box-sizing: border-box; /* Include padding in width calculation */
-      text-align: left; /* Change default text alignment */
-    }
-
-    .resultDiv h2 {
-      /* Larger heading */
-      font-size: 1.8rem;
-      text-align: center; /* Keep heading centered */
-      margin-bottom: 25px;
-    }
-
-    .resultDiv h3 {
-      /* Larger sub-heading */
-      font-size: 1.4rem;
-      margin-top: 30px;
-      margin-bottom: 15px;
-    }
-
-    .resultDiv p {
-      /* Add some space below paragraphs */
-      margin-bottom: 12px;
-    }
-
-    .price-comparison {
-      /* Increase margin above and below the table */
-      margin: 30px 0 20px 0;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-
-    .price-row {
-      display: flex;
-      padding: 15px 20px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-      transition: background-color 0.2s ease;
-    }
-
-    .price-row:hover {
-      background-color: #f5f5f5;
-    }
-
-    .price-row.selected {
-      background-color: #e6f7ff;
-      border-left: 4px solid #1890ff;
-    }
-
-    .price-row.header-row {
-      background-color: #fafafa;
-      font-weight: bold;
-      border-bottom: 2px solid #ddd;
-    }
-
-    .col-period {
-      flex: 2;
-    }
-
-    .col-discount,
-    .col-monthly,
-    .col-annual,
-    .col-per-user {
-      flex: 1;
-      /* Ensure text alignment is right */
-      text-align: right;
-    }
-
-    .summary {
-      /* Increase margin and padding for the summary box */
-      margin: 30px 0;
-      padding: 25px;
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      border: 1px solid #eee;
-      /* Subtle border */
-    }
-
-    .summary p {
-      /* Slightly larger font size in summary */
-      font-size: 1.1rem;
-      margin-bottom: 10px;
-    }
-
-    /* - End Updated Styles - */
-
-    /* - Save Quote Modal Styles - */
-    .modal {
-      display: none;
-      /* Hidden by default */
-      position: fixed;
-      z-index: 1000;
-      /* Sit on top */
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      /* Enable scroll if needed */
-      background-color: rgba(0, 0, 0, 0.4);
-      /* Black w/ opacity */
-    }
-
-    .modal-content {
-      background-color: #fefefe;
-      margin: 15% auto;
-      /* 15% from the top and centered */
-      padding: 30px;
-      border: 1px solid #888;
-      border-radius: 8px;
-      width: 80%;
-      max-width: 500px;
-      box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-      position: relative;
-    }
-
-    .close {
-      color: #aaa;
-      float: right;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-      position: absolute;
-      top: 15px;
-      right: 20px;
-    }
-
-    .close:hover,
-    .close:focus {
-      color: black;
-      text-decoration: none;
-      cursor: pointer;
-    }
-
-    .modal-content h3 {
-      margin-top: 0;
-      margin-bottom: 20px;
-    }
-
-    .modal-content label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: bold;
-    }
-
-    .modal-content input[type="text"],
-    .modal-content input[type="email"] {
-      width: 100%;
-      padding: 12px;
-      margin-bottom: 20px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    #saveQuoteMessage {
-      color: #ff4d4f;
-      margin-bottom: 15px;
-      display: none;
-    }
-
-    .save-quote-btn {
-      background-color: #1890ff;
-      color: white;
-      padding: 12px 24px;
-      margin: 20px 0;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-    }
-
-    .save-quote-btn:hover {
-      background-color: #40a9ff;
-    }
-  </style>
+  <script>
+    (function() {
+      'use strict';
+      async function applyDynamicStyles() {
+        try {
+          const response = await fetch('/api/site-styles');
+          if (response.ok) {
+            const styles = await response.json();
+            const root = document.documentElement;
+            if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+            if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+            if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+            if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+            if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+            if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+            if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+            if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+            if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+            if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+            if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+            if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          } else {
+            console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+          }
+        } catch (error) {
+          console.error('Error applying dynamic styles:', error);
+        }
+      }
+      // Use 'readystatechange' for potentially even earlier execution
+      if (document.readyState === 'loading') {
+        // DOM is still loading, add listener for interactive state
+        document.addEventListener('readystatechange', function() {
+          if (document.readyState === 'interactive') {
+             applyDynamicStyles();
+          }
+        });
+      } else {
+        // DOM is already interactive or complete
+        applyDynamicStyles();
+      }
+    })();
+  </script>
 </head>
 <body>
-  <div class="resultDiv">
+  <div class="resultDiv"> <!-- This class in CSS provides the wider layout -->
     <h2>Calculation Result</h2>
     <p><strong>Subscribers:</strong> <span id="subscriberAmount"><%= amount %></span></p>
     <p><strong>Currency:</strong> <span id="selectedCurrency"><%= currency %></span></p>
+
+    <!-- Display Subscriber Discount if applicable -->
     <% if (subscriberDiscount > 0) { %>
-      <!-- Ensure subscriberDiscount is a number before .toFixed -->
       <p><strong>Subscriber Discount:</strong> <%= Number(subscriberDiscount).toFixed(1) %>%</p>
     <% } %>
 
+    <!-- Display Promo Code Information -->
+    <% if (locals.promoDiscount && promoDiscount > 0) { %>
+      <p>
+        <strong>Promo Code Applied:</strong>
+        (<%= Number(promoDiscount).toFixed(1) %>% discount<%= locals.promoDescription ? ` - ${promoDescription}` : '' %>)
+      </p>
+    <% } else if (locals.promoCode && promoCode) { %>
+       <!-- If a code was submitted but found invalid/expired -->
+       <p><strong>Promo Code Attempted:</strong> <%= promoCode %> (Invalid or expired)</p>
+    <% } %>
+
     <h3>Price Comparison</h3>
+    <!-- The price-comparison div uses flexbox and the wider container for layout -->
     <div class="price-comparison" id="priceComparison">
       <div class="price-row header-row">
         <div class="col-period">Commitment Period</div>
@@ -231,13 +95,12 @@
     <div class="summary" id="summarySection">
       <% const displayOption = selectedOption; %>
       <p><strong>Commitment Period:</strong> <span id="summaryPeriod"><%= displayOption.label %></span></p>
-      <p><strong>Applied Discount:</strong> <span id="summaryDiscount"><%= (displayOption.value * 100).toFixed(1) %></span>%</p>
+      <p><strong>Applied Volume Discount:</strong> <span id="summaryDiscount"><%= (displayOption.value * 100).toFixed(1) %></span>%</p>
       <p><strong>Monthly Price:</strong> <span id="summaryCurrency"><%= currency %></span> <span id="summaryMonthlyPrice"><%= parseFloat(displayOption.monthlyPrice).toFixed(2) %></span></p>
       <p><strong>Annual Price:</strong> <span id="summaryCurrency2"><%= currency %></span> <span id="summaryAnnualPrice"><%= parseFloat(displayOption.annualPrice).toFixed(2) %></span></p>
       <p><strong>Price Per User/Month:</strong> <span id="summaryCurrency3"><%= currency %></span> <span id="summaryPricePerUser"><%= parseFloat(displayOption.pricePerUser).toFixed(4) %></span></p>
     </div>
-
-    <button id="saveQuoteBtn" class="save-quote-btn">Save All Quote Prices</button>
+    <button id="saveQuoteBtn" class="primary-button">Save All Quote Prices</button>
     <a href="/" class="secondary-button">Return</a>
   </div>
 
@@ -251,7 +114,7 @@
       <input type="text" id="customerNameInput" placeholder="Enter customer name" />
       <label for="customerEmailInput">Customer Email:</label>
       <input type="email" id="customerEmailInput" placeholder="Enter customer email" />
-      <button id="confirmSaveQuoteBtn" class="save-quote-btn">Confirm & Save</button>
+      <button id="confirmSaveQuoteBtn" class="primary-button">Confirm & Save</button>
     </div>
   </div>
 
@@ -266,14 +129,11 @@
       const customerNameInput = document.getElementById("customerNameInput");
       const customerEmailInput = document.getElementById("customerEmailInput"); // New Email Input Field
       const saveQuoteMessage = document.getElementById("saveQuoteMessage");
-
       // Get subscriber amount and currency from the page
       const subscriberAmount = parseInt(document.getElementById('subscriberAmount').textContent) || 0;
       const selectedCurrency = document.getElementById('selectedCurrency').textContent || 'USD';
-
       // Parse the allPricesForJS data passed from the server
       const allPricesData = JSON.parse('<%- JSON.stringify(allPrices) %>');
-
       // Function to save quote
       async function saveQuote(customerName, customerEmail) {
         try {
@@ -283,7 +143,6 @@
             // Use the label as the key (e.g., "1 Years") and the annualPrice as the value
             quotePrice[priceData.label] = parseFloat(priceData.annualPrice).toFixed(2);
           }
-
           // Prepare data to send to the server
           const quoteData = {
             QuoteCustomerName: customerName,
@@ -292,7 +151,6 @@
             QuoteCurrency: selectedCurrency, // Send currency
             QuoteCustomerEmail: customerEmail // Include email in data sent to server
           };
-
           const response = await fetch('/save-quote', {
             method: 'POST',
             headers: {
@@ -300,9 +158,7 @@
             },
             body: JSON.stringify(quoteData)
           });
-
           const result = await response.json();
-
           if (response.ok) {
             alert(`Quote saved successfully! ID: ${result.quoteId}`);
             modal.style.display = "none"; // Close modal on success
@@ -316,35 +172,29 @@
           saveQuoteMessage.style.display = "block";
         }
       }
-
       // When the user clicks the save quote button, open the modal
       btn.onclick = function () {
         modal.style.display = "block";
       }
-
       // When the user clicks on <span> (x), close the modal
       span.onclick = function () {
         modal.style.display = "none";
       }
-
       // When the user clicks anywhere outside of the modal, close it
       window.onclick = function (event) {
         if (event.target == modal) {
           modal.style.display = "none";
         }
       }
-
       // Handle confirm save button click
       confirmBtn.onclick = function () {
         const customerName = customerNameInput.value.trim();
         const customerEmail = customerEmailInput.value.trim(); // Get email value
-
         if (!customerName) {
           saveQuoteMessage.textContent = "Customer name is required.";
           saveQuoteMessage.style.display = "block";
           return;
         }
-
         // Basic email validation (you can use a more robust regex if needed)
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!customerEmail || !emailRegex.test(customerEmail)) {
@@ -352,27 +202,22 @@
           saveQuoteMessage.style.display = "block";
           return;
         }
-
         saveQuote(customerName, customerEmail); // Pass both name and email
       };
-
       // - End Save Quote Function -
 
       // Event delegation for clicks on price rows (existing functionality)
       priceComparisonDiv.addEventListener('click', function (event) {
         // Find the closest .price-row ancestor of the clicked element
         const clickedRow = event.target.closest('.price-row');
-
         // Check if the clicked element is a data row (not the header)
         if (clickedRow && !clickedRow.classList.contains('header-row')) {
           // Remove selected class from all rows
           document.querySelectorAll('.price-row').forEach(row => {
             row.classList.remove('selected');
           });
-
           // Add selected class to clicked row
           clickedRow.classList.add('selected');
-
           // Update summary with clicked row data
           const key = clickedRow.getAttribute('data-option-key');
           const selectedData = allPricesData.find(p => p.key === key);

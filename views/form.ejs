@@ -4,56 +4,6 @@
   <meta charset="UTF-8">
   <title><%= fieldConfigs.formTitle?.title || 'Order Form' %></title>
   <link rel="stylesheet" href="/styles.css">
-  <style>
-    /* Modal styles */
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 1000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0,0,0,0.4);
-    }
-
-    .modal-content {
-      background-color: #fefefe;
-      margin: 15% auto;
-      padding: 20px;
-      border: 1px solid #888;
-      width: 80%;
-      max-width: 500px;
-      border-radius: 5px;
-    }
-
-    .commitment-option {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      margin: 5px 0;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .commitment-option:hover {
-      background-color: #f0f0f0;
-    }
-
-    .close {
-      color: #aaa;
-      float: right;
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    .close:hover,
-    .close:focus {
-      color: black;
-    }
-  </style>
 </head>
 <body>
   <div class="container">
@@ -109,7 +59,7 @@
             <span class="info-icon" title="<%= tooltips.customerInfo %>">i</span>
           </legend>
               <div class="import-quote-container">
-                <input type="text" id="quoteCodeInput" placeholder="Enter quote code">
+                <input type="text" id="quoteCodeInput" placeholder="Enter quote ID, to import quote">
                 <button type="button" id="importQuoteBtn" class="secondary-button">Import Quote from Code</button>
               </div>
           <input type="text" name="customerCompany" 
@@ -409,6 +359,50 @@
     });
     // Initialize
     showStep(currentStep);
+      (function() {
+    'use strict';
+    // Function to fetch and apply styles
+    async function applyDynamicStyles() {
+      try {
+        // Fetch styles from the server endpoint
+        const response = await fetch('/api/site-styles');
+        if (response.ok) {
+          const styles = await response.json();
+          const root = document.documentElement;
+
+          // Apply fetched styles to CSS variables
+          // Make sure the property names here match exactly:
+          // 1. The keys returned by your /api/site-styles endpoint
+          // 2. The CSS variable names defined in :root in styles.css
+          if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+          if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+          if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+          if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+          if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+          if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+          if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+          if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+          if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+          if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+          if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+          if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          // Add assignments for any other dynamic colors you have defined
+        } else {
+          console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+        }
+      } catch (error) {
+        console.error('Error applying dynamic styles:', error);
+        // Fail gracefully, default CSS variables or static CSS will be used
+      }
+    }
+
+    // Call the function when the page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyDynamicStyles);
+    } else {
+      applyDynamicStyles();
+    }
+  })();
   </script>
 </body>
 </html>

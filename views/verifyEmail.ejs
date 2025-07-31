@@ -4,6 +4,49 @@
     <meta charset="UTF-8">
     <title>Reset Password</title>
     <link rel="stylesheet" href="/styles.css">
+  <script>
+    (function() {
+      'use strict';
+      async function applyDynamicStyles() {
+        try {
+          const response = await fetch('/api/site-styles');
+          if (response.ok) {
+            const styles = await response.json();
+            const root = document.documentElement;
+            if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+            if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+            if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+            if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+            if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+            if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+            if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+            if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+            if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+            if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+            if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+            if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          } else {
+            console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+          }
+        } catch (error) {
+          console.error('Error applying dynamic styles:', error);
+        }
+      }
+
+      // Use 'readystatechange' for potentially even earlier execution
+      if (document.readyState === 'loading') {
+        // DOM is still loading, add listener for interactive state
+        document.addEventListener('readystatechange', function() {
+          if (document.readyState === 'interactive') {
+             applyDynamicStyles();
+          }
+        });
+      } else {
+        // DOM is already interactive or complete
+        applyDynamicStyles();
+      }
+    })();
+  </script>
 </head>
 <body>
     <div class="container">
@@ -19,4 +62,5 @@
         </form>
     </div>
 </body>
+
 </html>

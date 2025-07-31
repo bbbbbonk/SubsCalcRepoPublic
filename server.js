@@ -8,6 +8,7 @@ import { DefaultAzureCredential } from "@azure/identity";
 import nodemailer from "nodemailer";
 import session from 'express-session';
 import bcrypt from "bcrypt";
+import { v4 as uuidv4 } from 'uuid';
 
 // Enable .env support (for local development)
 dotenvConfig();
@@ -216,6 +217,7 @@ if (useManagedIdentity) {
   cosmosClient = new CosmosClient(conn);
 }
 
+
 const calcDatabase = cosmosClient.database("CalculatorConfigDB");
 const discountContainer = calcDatabase.container("Discounts");
 const volumePricingContainer = calcDatabase.container("VolumePricing");
@@ -227,6 +229,9 @@ const customerContainer = customerDatabase.container("CustomerInfo");
 
 const adminConfigContainer=customerDatabase.container("adminConfig");
 const formConfigContainer = customerDatabase.container("FormConfig");
+
+const siteStylesContainer = calcDatabase.container("SiteStyles");
+const promoCodesContainer = calcDatabase.container("PromoCodes");
 
 // GET /initFormConfig - Initialize form configurations with defaults
 app.get("/initFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
@@ -1498,7 +1503,8 @@ app.post("/deleteCustomer", async (req, res) => {
 
 // POST /calculate
 app.post("/calculate", async (req, res) => {
-  const { amount, currency, commitmentDiscount, isCurrentSubscriber } = req.body;
+  // Extract form data
+  const { amount, currency, commitmentDiscount, isCurrentSubscriber, promoCode } = req.body;
   const numSubscribers = Number(amount);
 
   // Input validation
@@ -1509,36 +1515,60 @@ app.post("/calculate", async (req, res) => {
       return res.status(400).send("Currency is required.");
   }
 
-
   try {
-    const { resource: discountDoc } = await discountContainer
-      .item("discount-rules", "rules")
-      .read();
-
+    // --- Fetch Discount Rules ---
+    const { resource: discountDoc } = await discountContainer.item("discount-rules", "rules").read();
     if (!discountDoc) {
         return res.status(500).send("Discount rules not found.");
     }
 
-    const subscriberDiscount = isCurrentSubscriber === "on" ? (discountDoc.currentSubscriber || 0) : 0;
-    const baseSubscriberMultiplier = 1 - subscriberDiscount;
+    // --- Determine Discount Decimals ---
+    // 1. Subscriber Discount
+    const subscriberDiscountDecimal = isCurrentSubscriber === "on" ? (discountDoc.currentSubscriber || 0) : 0;
 
-    // Fetch all commitment options
-    const commitmentOptions = Object.entries(discountDoc.commitments || {}).map(([key, value]) => ({
-      key,
-      label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
-      value: parseFloat(value),
-    }));
+    // 2. Promo Code Discount (Validate internally)
+    let promoDiscountDecimal = 0;
+    let promoDescription = "";
+    if (promoCode && promoCode.trim()) {
+        try {
+            const trimmedCode = promoCode.trim();
+            const now = new Date().toISOString();
 
-    // Validate selected commitment
-    const selectedCommitment = commitmentOptions.find(opt => opt.value === parseFloat(commitmentDiscount) / 100);
-    const selectedKey = selectedCommitment ? selectedCommitment.key : null;
+            // Query for the code, ensuring it's active and within validity period
+            const { resources: promoCodes } = await promoCodesContainer.items
+              .query({
+                query: `SELECT * FROM c
+                        WHERE c.code = @code
+                        AND c.isActive = true
+                        AND (NOT IS_DEFINED(c.validFrom) OR c.validFrom <= @now)
+                        AND (NOT IS_DEFINED(c.validTo) OR c.validTo >= @now)`,
+                parameters: [
+                  { name: "@code", value: trimmedCode },
+                  { name: "@now", value: now }
+                ]
+              })
+              .fetchAll();
 
-    // Fetch pricing data
-    let ppuValueRaw = 0; // Raw value fetched from DB
+            const promoCodeDoc = promoCodes[0];
+            if (promoCodeDoc) {
+                promoDiscountDecimal = promoCodeDoc.discountPercentage / 100; // Convert to decimal
+                promoDescription = promoCodeDoc.description || "";
+            } else {
+                console.log("Invalid or expired promo code provided:", trimmedCode);
+                // Optionally add a message to be passed to the result page
+                // res.locals.promoMessage = "Invalid or expired promo code.";
+            }
+        } catch (err) {
+             console.error("Error validating promo code internally:", err);
+             // Handle error, maybe log, but don't crash calculation
+        }
+    }
+
+    // --- Fetch Pricing Data (PPU or Volume) ---
+    let ppuValueRaw = 0;
     let usedVolumePricing = false;
     let volumeBasePrice = 0;
-
-    if (numSubscribers >= 1000) { // Use >= for 1000+ users
+    if (numSubscribers >= 1000) {
       const { resources: tiers } = await volumePricingContainer.items
         .query({
           query: "SELECT * FROM c WHERE c.userCount >= @numUsers ORDER BY c.userCount ASC",
@@ -1550,7 +1580,6 @@ app.post("/calculate", async (req, res) => {
         usedVolumePricing = true;
       }
     }
-
     if (!usedVolumePricing) {
       const { resources: ppuDocs } = await ppusContainer.items
         .query({ query: "SELECT * FROM c ORDER BY c.date DESC" })
@@ -1559,58 +1588,88 @@ app.post("/calculate", async (req, res) => {
       ppuValueRaw = latestPPU?.ppu?.[currency]?.standard || 0;
     }
 
-    // --- Robustly ensure ppuValue is a number for calculations ---
-    // Convert the potentially undefined/raw value to a number with a default fallback
-    const ppuValue = Number(ppuValueRaw); // This handles undefined, null, strings
+    const ppuValue = Number(ppuValueRaw);
     if (isNaN(ppuValue)) {
         console.warn(`ppuValueRaw '${ppuValueRaw}' could not be converted to a valid number for currency ${currency}. Defaulting to 0.`);
     }
-    // --- End robust determination ---
 
-    // Calculate prices for all commitment options
+    // --- Fetch Commitment Options ---
+    const commitmentOptions = Object.entries(discountDoc.commitments || {}).map(([key, value]) => ({
+      key,
+      label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
+      value: parseFloat(value),
+    }));
+
+    // --- CALCULATE PRICES WITH MULTIPLICATIVE DISCOUNTS ---
     const allPrices = commitmentOptions.map(option => {
-      const commitmentMultiplier = 1 - option.value;
-      const totalDiscountMultiplier = commitmentMultiplier * baseSubscriberMultiplier;
-      let annualPrice, monthlyPrice, pricePerUser;
+        const commitmentDiscountDecimal = option.value; // e.g., 0.15 for 15%
 
-      if (usedVolumePricing) {
-        // Volume pricing is already annual
-        annualPrice = volumeBasePrice * totalDiscountMultiplier;
-        pricePerUser = annualPrice / numSubscribers;
-        monthlyPrice = annualPrice / 12;
-      } else {
-        // PPU-based: monthly base
-        // --- Use the robustly determined ppuValue (which is now guaranteed to be a number) ---
-        const baseMonthly = numSubscribers * ppuValue; // ppuValue is now a safe number
-        monthlyPrice = baseMonthly * totalDiscountMultiplier;
-        annualPrice = monthlyPrice * 12;
-        pricePerUser = monthlyPrice / numSubscribers;
-      }
+        // --- KEY CHANGE: Apply discounts multiplicatively ---
+        // Formula: Final Multiplier = (1 - D_subscriber) * (1 - D_promo) * (1 - D_commitment)
+        const combinedDiscountMultiplier =
+            (1 - subscriberDiscountDecimal) *
+            (1 - promoDiscountDecimal) *
+            (1 - commitmentDiscountDecimal);
 
-      return {
-        ...option,
-        monthlyPrice: Number(monthlyPrice.toFixed(2)),
-        annualPrice: Number(annualPrice.toFixed(2)),
-        pricePerUser: Number(pricePerUser.toFixed(4)),
-        isSelected: option.value === parseFloat(commitmentDiscount) / 100
-      };
+        let annualPrice, monthlyPrice, pricePerUser;
+
+        if (usedVolumePricing) {
+            // --- Volume Pricing Calculation ---
+            // Volume pricing gives an annual base price
+            annualPrice = volumeBasePrice * combinedDiscountMultiplier;
+            // Price per user is annual price divided by number of users
+            pricePerUser = annualPrice / numSubscribers; // This is price per user per *year*
+            // Convert annual to effective monthly
+            monthlyPrice = annualPrice / 12;
+        } else {
+            // --- PPU Pricing Calculation ---
+            // Calculate base monthly price before any discounts
+            const baseMonthlyPrice = numSubscribers * ppuValue;
+            // Apply the combined discount multiplier to the base monthly price
+            monthlyPrice = baseMonthlyPrice * combinedDiscountMultiplier;
+            // Convert discounted monthly price to annual price
+            annualPrice = monthlyPrice * 12;
+            // Calculate price per user per month
+            pricePerUser = monthlyPrice / numSubscribers;
+        }
+
+        // Determine if this option is the one selected in the form submission
+        // commitmentDiscount from req.body is expected to be a percentage string like "15.0"
+        const isSelected = option.value === (parseFloat(commitmentDiscount) / 100);
+
+        return {
+            ...option, // key, label, value
+            monthlyPrice: Number(monthlyPrice.toFixed(2)),
+            annualPrice: Number(annualPrice.toFixed(2)),
+            pricePerUser: Number(pricePerUser.toFixed(4)), // Keep higher precision for PPU display
+            isSelected: isSelected
+        };
     });
 
-    // Find the selected option for summary
+    // Find the option that was selected, or default to the first one
     const selectedOption = allPrices.find(p => p.isSelected) || allPrices[0];
 
-      // --- Pass the number-converted ppuValue to the template ---
-  res.render("result", {
-    amount: numSubscribers,
-    currency,
-    subscriberDiscount: Number(subscriberDiscount * 100),
-    usedVolumePricing,
-    ppuValue: usedVolumePricing ? 0 : (isNaN(ppuValue) ? 0 : ppuValue),
-    allPrices, // Keep this for the initial HTML render
-    // Add this line to pass data for JavaScript
-    allPricesForJS: JSON.stringify(allPrices), // Serialize for client-side use
-    selectedOption,
-  });
+    // --- END CALCULATE PRICES ---
+
+    // Render the result page, passing the calculated data
+    // Make sure QuoteCustomerEmail is NOT included here unless it's specifically needed and defined
+    res.render("result", {
+      amount: numSubscribers,
+      currency: currency,
+      // Pass discount percentages for display (convert decimals back to percentages)
+      subscriberDiscount: Number((subscriberDiscountDecimal * 100).toFixed(2)),
+      // promoDiscount was calculated as a decimal, convert for display
+      promoDiscount: Number((promoDiscountDecimal * 100).toFixed(2)),
+      promoDescription: promoDescription || "", // Pass promo description if available
+      usedVolumePricing: usedVolumePricing,
+      ppuValue: usedVolumePricing ? 0 : (isNaN(ppuValue) ? 0 : ppuValue),
+      allPrices: allPrices,
+      // Pass the data as JSON string for client-side JavaScript interaction
+      allPricesForJS: JSON.stringify(allPrices),
+      selectedOption: selectedOption
+      // QuoteCustomerEmail: ... // DO NOT PASS THIS unless it's defined in this context (e.g., from a previous step or form)
+    });
+
   } catch (err) {
     console.error("Calculation error:", err.message);
     res.status(500).send("Failed to calculate subscription price.");
@@ -1712,6 +1771,218 @@ app.post("/save-quote", async (req, res) => {
     }
 });
 
+app.post("/admin/createPromoCode", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const { code, discountPercentage, description, validFrom, validTo } = req.body;
+
+    if (!code || discountPercentage === undefined || discountPercentage < 0 || discountPercentage > 100) {
+      return res.status(400).json({ success: false, message: "Invalid promo code data." });
+    }
+
+    const newPromoCode = {
+      id: uuidv4(), // Unique ID for the document
+      code: code.trim(), // Ensure code is trimmed
+      discountPercentage: parseFloat(discountPercentage),
+      description: description || "",
+      validFrom: validFrom ? new Date(validFrom).toISOString() : new Date().toISOString(),
+      validTo: validTo ? new Date(validTo).toISOString() : null, // null means no expiry date set
+      isActive: true, // Default to active
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    // Check for duplicate code (optional but recommended)
+    const { resources: existingCodes } = await promoCodesContainer.items
+      .query({
+        query: "SELECT * FROM c WHERE c.code = @code",
+        parameters: [{ name: "@code", value: newPromoCode.code }]
+      })
+      .fetchAll();
+
+    if (existingCodes.length > 0) {
+       return res.status(400).json({ success: false, message: "Promo code already exists." });
+    }
+
+    await promoCodesContainer.items.create(newPromoCode);
+
+    res.json({ success: true, message: "Promo code created successfully.", promoCode: newPromoCode });
+  } catch (err) {
+    console.error("Error creating promo code:", err);
+    res.status(500).json({ success: false, message: "Error creating promo code." });
+  }
+});
+
+app.get("/admin/promo-codes", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+     const { resources: promoCodes } = await promoCodesContainer.items
+      .query({
+        query: "SELECT * FROM c ORDER BY c.createdAt DESC"
+      })
+      .fetchAll();
+
+     res.json({ success: true, promoCodes });
+  } catch (err) {
+    console.error("Error fetching promo codes:", err);
+    res.status(500).json({ success: false, message: "Error fetching promo codes." });
+  }
+});
+
+app.put("/admin/promo-codes/:id", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const promoCodeId = req.params.id;
+    const updateData = req.body; // e.g., { isActive: false, description: "Updated desc" }
+
+    // Fetch existing promo code
+     const { resource: existingCode } = await promoCodesContainer.item(promoCodeId, promoCodeId).read();
+     if (!existingCode) {
+        return res.status(404).json({ success: false, message: "Promo code not found." });
+     }
+
+     // Prepare update object
+     const updatedCode = {
+        ...existingCode,
+        ...updateData, // Overwrite fields provided in the request body
+        updatedAt: new Date().toISOString()
+     };
+
+     await promoCodesContainer.item(promoCodeId, promoCodeId).replace(updatedCode);
+     res.json({ success: true, message: "Promo code updated.", promoCode: updatedCode });
+
+  } catch (err) {
+    console.error("Error updating promo code:", err);
+    res.status(500).json({ success: false, message: "Error updating promo code." });
+  }
+});
+
+app.delete("/admin/promo-codes/:id", /*requireOrderAdminOTP*/ async (req, res) => {
+  try {
+    const promoCodeId = req.params.id;
+    await promoCodesContainer.item(promoCodeId, promoCodeId).delete();
+    res.json({ success: true, message: "Promo code deleted." });
+  } catch (err) {
+    console.error("Error deleting promo code:", err);
+    if (err.code === 404) {
+       res.status(404).json({ success: false, message: "Promo code not found." });
+    } else {
+       res.status(500).json({ success: false, message: "Error deleting promo code." });
+    }
+  }
+});
+
+app.post("/api/validate-promo-code", async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ isValid: false, message: "Promo code is required." });
+    }
+
+    const now = new Date().toISOString();
+
+    // Query for the code, ensuring it's active and within validity period
+    const { resources: promoCodes } = await promoCodesContainer.items
+      .query({
+        query: `SELECT * FROM c
+                WHERE c.code = @code
+                AND c.isActive = true
+                AND (NOT IS_DEFINED(c.validFrom) OR c.validFrom <= @now)
+                AND (NOT IS_DEFINED(c.validTo) OR c.validTo >= @now)`,
+        parameters: [
+          { name: "@code", value: code.trim() },
+          { name: "@now", value: now }
+        ]
+      })
+      .fetchAll();
+
+    const promoCode = promoCodes[0];
+
+    if (promoCode) {
+      res.json({
+        isValid: true,
+        discountPercentage: promoCode.discountPercentage,
+        description: promoCode.description
+      });
+    } else {
+      res.json({ isValid: false, message: "Invalid or expired promo code." });
+    }
+  } catch (err) {
+    console.error("Error validating promo code:", err);
+    res.status(500).json({ isValid: false, message: "Error validating promo code." });
+  }
+});
+
+
+
+app.get("/stylesAdmin", /*requireOrderAdminOTP*/ async (req, res) => { // Use requireOrderAdminOTP for security
+    try {
+        // Fetch current styles from Cosmos DB
+        const { resource: styles } = await siteStylesContainer.item("site-styles", "config").read(); // Use a fixed id/partition key
+
+        res.render("stylesAdmin", {
+            styles: styles || {}, // Pass styles object, default to empty if not found
+            message: req.query.message || null // For success/error messages
+        });
+    } catch (err) {
+        console.error("Error fetching site styles:", err);
+        // Render page with defaults if fetch fails
+        res.render("stylesAdmin", {
+            styles: {},
+            message: "Error loading styles. Showing defaults."
+        });
+    }
+});
+
+app.post("/stylesAdmin", /*requireOrderAdminOTP*/ async (req, res) => {
+    try {
+        // Ensure the partition key property name matches your container definition
+        // If partition key path is '/config', use 'config' here:
+        const stylesToSave = {
+            id: "site-styles",
+            config: "config", // <-- Corrected partition key property and value
+            // Map request body to style object
+            primaryColor: req.body.primaryColor,
+            primaryHoverColor: req.body.primaryHoverColor,
+            secondaryColor: req.body.secondaryColor,
+            secondaryTextColor: req.body.secondaryTextColor,
+            secondaryHoverColor: req.body.secondaryHoverColor,
+            backgroundColor: req.body.backgroundColor,
+            containerColor: req.body.containerColor,
+            textColor: req.body.textColor,
+            linkColor: req.body.linkColor,
+            linkHoverColor: req.body.linkHoverColor,
+            infoIconColor: req.body.infoIconColor,
+            infoIconHoverColor: req.body.infoIconHoverColor
+            // Add other colors as needed
+        };
+
+        // Upsert the styles document
+        // Make sure to pass the partition key value correctly in the options if needed by the SDK version
+        // Often, the SDK can infer it from the item object, but explicitly passing it can prevent issues.
+        await siteStylesContainer.items.upsert(stylesToSave, { partitionKey: stylesToSave.config }); // Explicitly pass partition key
+
+        res.redirect("/stylesAdmin?message=Styles updated successfully!");
+    } catch (err) {
+        console.error("Error saving site styles:", err);
+        res.redirect("/stylesAdmin?message=Error saving styles.");
+    }
+});
+
+app.get("/api/site-styles", async (req, res) => {
+    try {
+        const { resource: styles } = await siteStylesContainer.item("site-styles", "config").read();
+        if (styles) {
+            // Return only the color properties, excluding metadata
+            const { id, type, _rid, _self, _etag, _attachments, _ts, ...colorStyles } = styles;
+            res.json(colorStyles);
+        } else {
+            res.status(404).json({ message: "Styles not found" }); // Or return defaults
+        }
+    } catch (err) {
+        console.error("Error fetching site styles API:", err);
+        // Return empty object or defaults on error to prevent frontend breakage
+        res.status(500).json({});
+    }
+});
 
 // Start server
 const port = process.env.PORT || 3000;

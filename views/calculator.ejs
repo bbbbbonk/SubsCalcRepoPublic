@@ -8,12 +8,12 @@
 <body>
   <div class="calcDiv">
     <h1>Subscription Calculator</h1>
-    <form action="/calculate" method="POST">
+    <form id="calculator-form" action="/calculate" method="POST">
       <label for="amount">Number of Subscribers:</label>
-      <input type="number" name="amount" required />
+      <input type="number" id="amount" name="amount" required />
 
       <label for="currency">Currency:</label>
-      <select name="currency" required>
+      <select id="currency" name="currency" required>
         <option value="USD">USD</option>
         <option value="EUR">EUR</option>
         <option value="GBP">GBP</option>
@@ -33,9 +33,20 @@
       <input type="hidden" name="commitmentDiscount" value="<%= (commitmentOptions.length > 0 ? commitmentOptions[0].value * 100 : 0) %>" />
 
       <label>
-        <input type="checkbox" name="isCurrentSubscriber" />
+        <input type="checkbox" id="isCurrentSubscriber" name="isCurrentSubscriber" />
         Eligible for discount? (<%= currentSubscriberDiscount %>% discount)
       </label>
+
+      <!-- --- NEW PROMO CODE INPUT --- -->
+      <div class="promo-code-section" style="margin-top: 20px;">
+        <label for="promo-code-input">Promo Code:</label>
+        <input type="text" id="promo-code-input" name="promoCode" placeholder="Enter promo code" />
+        <button type="button" id="apply-promo-button">Apply</button>
+        <span id="promo-message" style="margin-left: 10px; font-weight: bold;"></span>
+        <input type="hidden" id="promo-discount-value" name="promoDiscountApplied" value="0" /> <!-- Hidden field to track applied discount -->
+        <input type="hidden" id="promo-description-value" name="promoDescriptionApplied" value="" /> <!-- Hidden field for description -->
+      </div>
+      <!-- --- END NEW PROMO CODE INPUT --- -->
 
       <div class="button-group">
         <a href="/" class="secondary-button">Return</a>
@@ -43,5 +54,121 @@
       </div>
     </form>
   </div>
+  <script>
+    (function() {
+      'use strict';
+      async function applyDynamicStyles() {
+        try {
+          const response = await fetch('/api/site-styles');
+          if (response.ok) {
+            const styles = await response.json();
+            const root = document.documentElement;
+            if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+            if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+            if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+            if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+            if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+            if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+            if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+            if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+            if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+            if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+            if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+            if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          } else {
+            console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+          }
+        } catch (error) {
+          console.error('Error applying dynamic styles:', error);
+        }
+      }
+
+      // Use 'readystatechange' for potentially even earlier execution
+      if (document.readyState === 'loading') {
+        // DOM is still loading, add listener for interactive state
+        document.addEventListener('readystatechange', function() {
+          if (document.readyState === 'interactive') {
+             applyDynamicStyles();
+          }
+        });
+      } else {
+        // DOM is already interactive or complete
+        applyDynamicStyles();
+      }
+    })();
+
+    // --- PROMO CODE VALIDATION SCRIPT ---
+    document.addEventListener('DOMContentLoaded', () => {
+      const promoCodeInput = document.getElementById('promo-code-input');
+      const applyPromoButton = document.getElementById('apply-promo-button');
+      const promoMessage = document.getElementById('promo-message');
+      const promoDiscountValue = document.getElementById('promo-discount-value');
+      const promoDescriptionValue = document.getElementById('promo-description-value');
+      const calculatorForm = document.getElementById('calculator-form');
+
+      if (applyPromoButton && promoCodeInput) {
+        applyPromoButton.addEventListener('click', async () => {
+          const code = promoCodeInput.value.trim();
+          if (!code) {
+            promoMessage.textContent = 'Please enter a promo code.';
+            promoMessage.style.color = 'red';
+            return;
+          }
+
+          applyPromoButton.disabled = true;
+          applyPromoButton.textContent = 'Applying...';
+          promoMessage.textContent = '';
+          promoDiscountValue.value = '0'; // Reset hidden discount value
+          promoDescriptionValue.value = ''; // Reset hidden description
+
+          try {
+            const response = await fetch('/api/validate-promo-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: code })
+            });
+
+            const data = await response.json();
+            if (data.isValid) {
+              promoMessage.textContent = `Promo code applied! ${data.discountPercentage.toFixed(2)}% discount.`;
+              if (data.description) {
+                 promoMessage.textContent += ` (${data.description})`;
+              }
+              promoMessage.style.color = 'green';
+              promoDiscountValue.value = data.discountPercentage.toFixed(2); // Store discount
+              promoDescriptionValue.value = data.description || ''; // Store description
+            } else {
+              promoMessage.textContent = data.message || 'Invalid or expired promo code.';
+              promoMessage.style.color = 'red';
+            }
+          } catch (err) {
+            console.error('Error validating promo code:', err);
+            promoMessage.textContent = 'Error validating promo code.';
+            promoMessage.style.color = 'red';
+          } finally {
+            applyPromoButton.disabled = false;
+            applyPromoButton.textContent = 'Apply';
+          }
+        });
+      }
+
+      // Optional: Clear promo code status if user changes inputs significantly
+      // You can add event listeners to amount, currency, etc., to reset the promo status if needed.
+      // For now, the promo discount will be sent with the form submission if applied.
+
+       // Optional: Prevent form submission if promo code is invalid (requires server-side validation anyway)
+       // This is just a client-side hint. Server validation is crucial.
+       /*
+       calculatorForm.addEventListener('submit', (e) => {
+          // Example: Prevent if message indicates error and code field is not empty
+          if (promoCodeInput.value.trim() && promoMessage.style.color === 'red') {
+             e.preventDefault();
+             alert('Please correct the promo code before submitting.');
+          }
+       });
+       */
+    });
+    // --- END PROMO CODE VALIDATION SCRIPT ---
+  </script>
 </body>
 </html>

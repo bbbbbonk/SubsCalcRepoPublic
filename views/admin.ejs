@@ -78,7 +78,76 @@
           color: #333; /* Darker text for contrast */
           font-weight: bold; /* Make it stand out slightly */
       }
+      /* Styles for Step 5 Table */
+      .volume-pricing-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      .volume-pricing-table th,
+      .volume-pricing-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+       .volume-pricing-table th {
+        background-color: #f2f2f2;
+        text-align: center; /* Center align headers */
+      }
+       .volume-pricing-table td:nth-child(n+3) { /* Align price columns (3rd onwards) to the right */
+        text-align: right;
+      }
+      .table-container {
+        overflow-x: auto; /* Add horizontal scroll if table is wide */
+        margin-top: 20px;
+      }
   </style>
+  <script>
+        (function() {
+    'use strict';
+    // Function to fetch and apply styles
+    async function applyDynamicStyles() {
+      try {
+        // Fetch styles from the server endpoint
+        const response = await fetch('/api/site-styles');
+        if (response.ok) {
+          const styles = await response.json();
+          const root = document.documentElement;
+
+          // Apply fetched styles to CSS variables
+          // Make sure the property names here match exactly:
+          // 1. The keys returned by your /api/site-styles endpoint
+          // 2. The CSS variable names defined in :root in styles.css
+          if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+          if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+          if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+          if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+          if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+          if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+          if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+          if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+          if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+          if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+          if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+          if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          // Add assignments for any other dynamic colors you have defined
+        } else {
+          console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+        }
+      } catch (error) {
+        console.error('Error applying dynamic styles:', error);
+        // Fail gracefully, default CSS variables or static CSS will be used
+      }
+    }
+
+    // Call the function when the page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyDynamicStyles);
+    } else {
+      applyDynamicStyles();
+    }
+  })();
+</script>
 </head>
 <body>
   <div class="titleDiv">
@@ -180,8 +249,8 @@
           <% Object.entries(basePrices.subscriptions).forEach(([currency, basePrice]) => { %>
             <div class="form-group">
               <label><%= currency %> Total Price</label>
-              <input type="number" name="subscriptions[<%= currency %>]" step="0.01" min="0" required
-                     disabled class="new-tier-calculated-price" data-currency="<%= currency %>">
+              <input type="number" name="subscriptions[<%= currency %>]" step="1" min="0" required
+                     disabled class="new-tier-calculated-price" data-currency="<%= currency %>"> <!-- Changed step -->
             </div>
           <% }) %>
           <button type="submit" id="add-tier-button">Add New Tier</button>
@@ -205,15 +274,17 @@
                 <% if (currency === 'GBP') { %>
                   <!-- GBP is editable -->
                   <label><%= currency %> Total Price (Editable)</label>
+                  <!-- Changed value formatting and step -->
                   <input type="number" name="tiers[<%= tier.id %>][subscriptions][<%= currency %>]"
-                    value="<%= tier.subscriptions[currency].toFixed(2) %>"
-                    step="0.01" min="0" class="calculated-price editable-gbp" data-currency="<%= currency %>" data-tier-id="<%= tier.id %>">
+                    value="<%= Math.round(tier.subscriptions[currency]) %>"
+                    step="1" min="0" class="calculated-price editable-gbp" data-currency="<%= currency %>" data-tier-id="<%= tier.id %>">
                 <% } else { %>
                   <!-- Other currencies are calculated from base prices and discount -->
                   <label><%= currency %> Total Price</label>
+                  <!-- Changed value formatting and step, made readonly -->
                   <input type="number" name="tiers[<%= tier.id %>][subscriptions][<%= currency %>]"
-                    value="<%= tier.subscriptions[currency].toFixed(2) %>"
-                    step="0.01" min="0" readonly class="calculated-price" data-currency="<%= currency %>" data-tier-id="<%= tier.id %>">
+                    value="<%= Math.round(tier.subscriptions[currency]) %>"
+                    step="1" min="0" readonly class="calculated-price" data-currency="<%= currency %>" data-tier-id="<%= tier.id %>">
                 <% } %>
               <% }) %>
               <button type="button" class="delete-tier" data-tier-id="<%= tier.id %>">Delete Tier</button>
@@ -239,10 +310,10 @@
           </div>
         </div>
         <div class="rounding-buttons">
-          <button type="button" id="round-up-button">Round Up</button>
-          <button type="button" id="round-down-button">Round Down</button>
-          <button type="button" id="round-nearest-button">Round to Nearest</button>
-          <button type="button" id="undo-rounding-button">Undo Rounding</button>
+          <button type="button" class="primary-button" id="round-up-button">Round Up</button>
+          <button type="button" class="primary-button" id="round-down-button">Round Down</button>
+          <button type="button" class="primary-button" id="round-nearest-button">Round to Nearest</button>
+          <button type="button" class="secondary-button" id="undo-rounding-button">Undo Rounding</button>
         </div>
       </div>
       <div class="step-navigation">
@@ -251,35 +322,136 @@
       </div>
     </div>
     <!-- Step 4: Discounts (was Step 1) -->
-    <div id="step4" class="step-container"> <!-- Changed ID -->
+    <div id="step4" class="step-container">
       <h2>Discount Settings</h2>
       <form id="discounts-form" action="/admin/updateDiscounts" method="POST">
-          <div class="variable-grid">
+        <div class="variable-grid">
           <% if (discountRules.commitments) { %>
-              <% discountRules.commitments.forEach((commitment, index) => { %>
+            <% discountRules.commitments.forEach((commitment, index) => { %>
               <div class="variable-card">
-                  <h3><%= commitment.name %></h3>
-                  <label>Discount Percentage</label>
-                  <!-- Use toString() for max precision in discount rules too -->
-                  <input type="number" name="commitments[<%= commitment.key %>]"
-                      value="<%= (commitment.value * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
+                <h3><%= commitment.name %></h3>
+                <label>Discount Percentage</label>
+                <input type="number" name="commitments[<%= commitment.key %>]"
+                  value="<%= (commitment.value * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
               </div>
-              <% }) %>
+            <% }) %>
           <% } %>
           <div class="variable-card">
-              <h3>Additional Discounts</h3>
-              <label>Discount Percentage</label>
-              <!-- Use toString() for max precision -->
-              <input type="number" name="currentSubscriber"
-                  value="<%= (discountRules.currentSubscriber * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
+            <h3>Additional Discounts</h3>
+            <label>Discount Percentage</label>
+            <input type="number" name="currentSubscriber"
+              value="<%= (discountRules.currentSubscriber * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
           </div>
-          </div>
+        </div>
       </form>
+
+      <!-- --- NEW PROMO CODES SECTION --- -->
+      <div class="promo-codes-section" style="margin-top: 30px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
+        <h3>Create Promo Code</h3>
+        <form id="create-promo-form">
+          <div class="form-group">
+            <label for="promo-code">Promo Code:</label>
+            <input type="text" id="promo-code" name="code" required />
+          </div>
+          <div class="form-group">
+            <label for="promo-discount">Discount (%):</label>
+            <input type="number" id="promo-discount" name="discountPercentage" min="0" max="100" step="0.01" required />
+          </div>
+          <div class="form-group">
+            <label for="promo-description">Description (Optional):</label>
+            <input type="text" id="promo-description" name="description" />
+          </div>
+          <div class="form-group">
+            <label for="promo-valid-from">Valid From:</label>
+            <input type="datetime-local" id="promo-valid-from" name="validFrom" />
+          </div>
+          <div class="form-group">
+            <label for="promo-valid-to">Valid To (Optional):</label>
+            <input type="datetime-local" id="promo-valid-to" name="validTo" />
+          </div>
+          <button type="submit" id="create-promo-button">Create Promo Code</button>
+        </form>
+
+        <h3 style="margin-top: 20px;">Existing Promo Codes</h3>
+        <div id="promo-codes-list">
+          <!-- Promo codes will be loaded here via JS -->
+          <p>Loading promo codes...</p>
+        </div>
+      </div>
+      <!-- --- END NEW PROMO CODES SECTION --- -->
+
       <div class="step-navigation">
-        <button class="prev-step" data-prev="3">Previous: Volume Pricing</button> <!-- Updated data-prev -->
-        <button type="button" id="save-all-button">Save All Changes</button>
+        <button class="prev-step" data-prev="3">Previous: Volume Pricing</button>
+        <button class="next-step" data-next="5">Next: Pricing Overview</button>
       </div>
     </div>
+
+    <!-- Step 5: Volume Pricing Overview -->
+    <div id="step5" class="step-container">
+      <h2>Volume Pricing Overview</h2>
+      <p>This table shows the configured volume pricing tiers and calculated prices for each currency.</p>
+
+      <% if (volumePricing && volumePricing.length > 0) { %>
+        <!-- Extract unique currencies from the first tier's subscriptions -->
+        <% const currencies = Object.keys((volumePricing.find(t => t.subscriptions) || {}).subscriptions || {}).sort(); %>
+
+        <div class="table-container"> <!-- Add scroll for wide tables -->
+        <table class="volume-pricing-table">
+          <thead>
+            <tr>
+              <th>User Count</th>
+              <th>Volume Discount (%)</th>
+              <% currencies.forEach(currency => { %>
+                <th><%= currency %> Total Price</th>
+              <% }); %>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Include Base Prices row -->
+            <tr>
+                <td>Base Prices</td>
+                <td>N/A</td>
+                <% currencies.forEach(currency => { %>
+                   <td style="text-align: right;"> <!-- Align right -->
+                     <% if (basePrices.subscriptions && basePrices.subscriptions[currency] !== undefined) { %>
+                       <%= Math.round(parseFloat(basePrices.subscriptions[currency])) %> <!-- Round value -->
+                     <% } else { %>
+                       N/A
+                     <% } %>
+                   </td>
+                 <% }); %>
+            </tr>
+            <!-- Sort and display volume pricing tiers -->
+            <% volumePricing.sort((a, b) => (a.userCount || 0) - (b.userCount || 0)).forEach(tier => { %>
+              <tr>
+                <td><%= tier.userCount !== null ? tier.userCount.toLocaleString() : 'Base Prices' %></td>
+                <td><%= tier.userCount !== null ? (tier.volumeDiscount * 100).toFixed(4) : 'N/A' %></td>
+                 <% currencies.forEach(currency => { %>
+                   <td style="text-align: right;"> <!-- Align right -->
+                     <% if (tier.subscriptions && tier.subscriptions[currency] !== undefined) { %>
+                       <%= Math.round(parseFloat(tier.subscriptions[currency])) %> <!-- Round value -->
+                     <% } else { %>
+                       N/A
+                     <% } %>
+                   </td>
+                 <% }); %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        </div>
+      <% } else { %>
+        <p>No volume pricing data available.</p>
+      <% } %>
+
+      <div class="step-navigation">
+        <button class="prev-step" data-prev="4">Previous: Discounts</button>
+        <button type="button" id="save-all-button">Save All Changes</button> <!-- Add Save All Button -->
+         <!-- Optional: Add a Refresh button if needed -->
+         <!-- <button type="button" onclick="window.location.reload();">Refresh Data</button> -->
+      </div>
+    </div>
+
     <div class="button-group">
       <a href="/" class="secondary-button">Return to Home</a>
     </div>
@@ -291,11 +463,11 @@
     1: "Step 1: Edit PPUs",
     2: "Step 2: Edit Base Prices",
     3: "Step 3: Edit Volume Pricing",
-    4: "Step 4: Edit Discounts"
+    4: "Step 4: Edit Discounts",
+    5: "Step 5: Volume Pricing Overview"
   };
   // Initialize with the active step from server
   const activeStep = <%= activeStep || 1 %>;
-
   // Set up step navigation
   function setupStepNavigation() {
     // Set the current step title
@@ -304,7 +476,6 @@
     document.querySelectorAll('.step-container').forEach((container, index) => {
       container.style.display = (index + 1 === activeStep) ? 'block' : 'none';
     });
-
     // Next step navigation
     document.querySelectorAll('.next-step').forEach(button => {
       button.addEventListener('click', (e) => {
@@ -320,7 +491,6 @@
         window.history.pushState({ path: url.href }, '', url.href);
       });
     });
-
     // Previous step navigation
     document.querySelectorAll('.prev-step').forEach(button => {
       button.addEventListener('click', (e) => {
@@ -337,7 +507,6 @@
       });
     });
   }
-
   // Tier deletion with AJAX
   function setupTierDeletion() {
     document.querySelectorAll('.delete-tier').forEach(button => {
@@ -377,37 +546,32 @@
       });
     });
   }
-
   // Handle adding a new tier with AJAX
   function setupAddTier() {
     const addTierForm = document.getElementById('add-tier-form');
     const userCountInput = document.getElementById('new-tier-user-count');
     const discountInput = document.getElementById('new-tier-discount');
     const addTierButton = document.getElementById('add-tier-button');
-
     // Update calculated prices when inputs change
     function updateCalculatedPrices() {
       const userCount = parseInt(userCountInput.value) || 0;
       const discount = parseFloat(discountInput.value) || 0; // Parse as float (percentage)
-
       // Update calculated prices for each currency using base prices
       document.querySelectorAll('.new-tier-calculated-price').forEach(input => {
         const currency = input.getAttribute('data-currency');
         // Get base annual price from the hidden input in the base prices form
         const basePriceInput = document.querySelector(`#base-prices-form input.base-annual-price-input[data-currency="${currency}"]`);
         const basePrice = basePriceInput ? parseFloat(basePriceInput.value) || 0 : 0;
-
         // Apply formula: (user count * base price) * (1 - volume discount)
         // Note: discount is expected to be a percentage (e.g., 7.85), so divide by 100
         const calculatedPrice = (userCount * basePrice) * (1 - discount / 100);
-        input.value = calculatedPrice.toFixed(2);
+        // Changed to Math.round for display
+        input.value = Math.round(calculatedPrice);
       });
     }
-
     // Add event listeners for input changes
     userCountInput.addEventListener('input', updateCalculatedPrices);
     discountInput.addEventListener('input', updateCalculatedPrices);
-
     // Handle form submission
     addTierForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -446,7 +610,6 @@
       }
     });
   }
-
   // "Save All Changes" button functionality
   function setupSaveAllButton() {
     const saveButton = document.getElementById('save-all-button');
@@ -486,7 +649,7 @@
         }
         // After all forms are saved successfully, update the URL to show success
         const url = new URL(window.location.href);
-        url.searchParams.set('step', '4');
+        url.searchParams.set('step', '4'); // Redirect back to Step 4 after saving
         if (url.searchParams.get('message')) {
           url.searchParams.set('message', 'All changes saved successfully!');
         } else {
@@ -504,7 +667,6 @@
       }
     });
   }
-
   // Initialize calculations on page load
   function calculatePrices() {
     // --- Updated Base Price Calculation Logic (Monthly Input -> Annual Stored/Displayed) ---
@@ -522,7 +684,6 @@
             if (annualPriceDisplay) {
                 annualPriceDisplay.value = calculatedAnnualPrice.toFixed(2);
             }
-
             // --- Update related volume pricing calculations ---
             document.querySelectorAll(`#volume-pricing-grid input[data-currency="${currency}"]`).forEach(volumeInput => {
                 const tierCard = volumeInput.closest('.variable-card');
@@ -531,20 +692,18 @@
                     if (tierId) {
                         const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
                         const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
-
                         const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
                         // Get discount as a percentage (e.g., 7.85) from the input
                         const discountPercent = discountInput ? parseFloat(discountInput.value) || 0 : 0;
                         // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
                         const discountDecimal = discountPercent / 100;
-
                         // Recalculate volume price using the NEW annual base price and current discount
                         const calculatedVolumePrice = (userCount * calculatedAnnualPrice) * (1 - discountDecimal);
-                        volumeInput.value = calculatedVolumePrice.toFixed(2);
+                        // Changed to Math.round for display
+                        volumeInput.value = Math.round(calculatedVolumePrice);
                     }
                 }
             });
-
             // --- Update the new tier form calculations ---
             const newTierPriceInput = document.querySelector(`#add-tier-form input[data-currency="${currency}"]`);
             if (newTierPriceInput) {
@@ -555,14 +714,13 @@
                 const discountPercent = parseFloat(discountInput.value) || 0;
                 // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
                 const discountDecimal = discountPercent / 100;
-
                 // Recalculate new tier price using the NEW annual base price
                 const calculatedNewTierPrice = (userCount * calculatedAnnualPrice) * (1 - discountDecimal);
-                newTierPriceInput.value = calculatedNewTierPrice.toFixed(2);
+                // Changed to Math.round for display
+                newTierPriceInput.value = Math.round(calculatedNewTierPrice);
             }
         });
     });
-
     // --- Real-Time Volume Discount Calculation Logic ---
     // This is the key part for real-time updates based on discount input
     document.querySelectorAll('#volume-pricing-form input.discount-input').forEach(discountInput => {
@@ -573,11 +731,9 @@
                 const discountPercent = parseFloat(this.value) || 0;
                 // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
                 const discountDecimal = discountPercent / 100;
-
                 // Get user count for this tier
                 const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
                 const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
-
                 // Get base annual prices for all currencies from the hidden inputs
                 const basePriceInputs = document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]');
                 basePriceInputs.forEach(basePriceInput => {
@@ -585,22 +741,19 @@
                     if (currencyMatch) {
                         const currency = currencyMatch[1];
                         const basePrice = parseFloat(basePriceInput.value) || 0;
-
                         // Apply formula: (user count * base price) * (1 - volume discount)
                         const calculatedPrice = (userCount * basePrice) * (1 - discountDecimal);
-
                         // Update the corresponding price input for this tier and currency
                         const volumePriceInput = document.querySelector(`#volume-pricing-grid input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
                         if (volumePriceInput) {
-                            // Format to 2 decimal places for display/storage
-                            volumePriceInput.value = calculatedPrice.toFixed(2);
+                            // Changed to Math.round for display
+                            volumePriceInput.value = Math.round(calculatedPrice);
                         }
                     }
                 });
             }
         });
     });
-
     // --- User Count Real-Time Calculation Logic ---
     document.querySelectorAll('#volume-pricing-form input[name$="[userCount]"]').forEach(userCountInput => {
         userCountInput.addEventListener('input', function() {
@@ -608,14 +761,12 @@
             if (tierIdMatch) {
                 const tierId = tierIdMatch[1];
                 const userCount = parseInt(this.value) || 0;
-
                 // Get the current discount percentage for this tier
                 const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
                 // Get discount as a percentage (e.g., 7.85) from the input
                 const discountPercent = discountInput ? parseFloat(discountInput.value) || 0 : 0;
                 // Convert percentage to decimal for calculation (e.g., 7.85 -> 0.0785)
                 const discountDecimal = discountPercent / 100;
-
                 // Get base annual prices for all currencies
                 const basePriceInputs = document.querySelectorAll('#base-prices-form input.base-annual-price-input[name^="subscriptions"]');
                 basePriceInputs.forEach(basePriceInput => {
@@ -623,77 +774,105 @@
                     if (currencyMatch) {
                         const currency = currencyMatch[1];
                         const basePrice = parseFloat(basePriceInput.value) || 0;
-
                         // Apply formula: (user count * base price) * (1 - volume discount)
                         const calculatedPrice = (userCount * basePrice) * (1 - discountDecimal);
-
                         // Update the corresponding price input for this tier and currency
                         const volumePriceInput = document.querySelector(`input[name="tiers[${tierId}][subscriptions][${currency}]"]`);
                         if (volumePriceInput) {
-                            volumePriceInput.value = calculatedPrice.toFixed(2);
+                            // Changed to Math.round for display
+                            volumePriceInput.value = Math.round(calculatedPrice);
                         }
                     }
                 });
             }
         });
     });
-
     // --- GBP Price Change Calculation Logic (for backward compatibility) ---
-    // This updates the discount when GBP price is edited manually
+    // This updates the discount and other currency prices when GBP price is edited manually.
+    // Uses 'input' for real-time updates to other fields, avoids modifying the GBP field itself during input.
     document.querySelectorAll('#volume-pricing-grid input[data-currency="GBP"].editable-gbp').forEach(gbpInput => {
+        // Use 'input' event for real-time calculation feedback (updating other fields)
         gbpInput.addEventListener('input', function() {
             const tierId = this.getAttribute('data-tier-id');
-            if (tierId) {
-                const gbpPrice = parseFloat(this.value) || 0;
-                const userCountInput = document.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
-                const userCount = userCountInput ? parseInt(userCountInput.value) || 0 : 0;
+            const tierCard = this.closest('.variable-card'); // Find the parent card
+            if (tierId && tierCard) {
+                const gbpPriceStr = this.value; // Get the raw string value
+                const gbpPrice = parseFloat(gbpPriceStr); // Parse it to a float for calculations
+
+                // --- Get userCount from the hidden input within the same tier card ---
+                const userCountInput = tierCard.querySelector(`input[name="tiers[${tierId}][userCount]"]`);
+                const userCount = userCountInput ? parseInt(userCountInput.value, 10) || 0 : 0;
+
+                // --- Get baseGbpPrice from the base prices form ---
                 const baseGbpPriceInput = document.querySelector('#base-prices-form input.base-annual-price-input[data-currency="GBP"]');
                 const baseGbpPrice = baseGbpPriceInput ? parseFloat(baseGbpPriceInput.value) || 0 : 0;
 
                 let discountPercent = 0;
-                if (userCount > 0 && baseGbpPrice > 0) {
+                // Calculate discount only if values are valid and positive
+                if (!isNaN(gbpPrice) && gbpPrice >= 0 && userCount > 0 && baseGbpPrice > 0 && (baseGbpPrice * userCount) > 0) {
                     // Calculate discount percentage: (1 - (editedPrice / (basePrice * userCount))) * 100
                     const calculatedDiscountDecimal = 1 - (gbpPrice / (baseGbpPrice * userCount));
-                    discountPercent = Math.max(0, Math.min(100, calculatedDiscountDecimal * 100)); // Clamp and convert to %
+                    // Clamp the discount percentage between 0 and 100
+                    discountPercent = Math.max(0, Math.min(100, calculatedDiscountDecimal * 100));
                 }
+                // If inputs are invalid, discountPercent remains 0
 
-                // Update the discount input (displayed as percentage)
-                const discountInput = document.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
+                // --- Find the discount input within the same tier card ---
+                const discountInput = tierCard.querySelector(`input[name="tiers[${tierId}][volumeDiscount]"]`);
                 if (discountInput) {
-                    discountInput.value = discountPercent.toString(); // Use toString() for display
-                }
+                    // --- Update the discount input with the calculated value ---
+                    // Use toPrecision or toFixed with sufficient digits to avoid unnecessary rounding display issues,
+                    // but toString() is often sufficient for the precision needed in the input field.
+                    // The key is NOT to set `this.value` (the GBP input) here.
+                    discountInput.value = discountPercent.toString();
 
-                // --- Trigger real-time update for other currencies based on the new discount ---
-                // This ensures EUR, USD etc. update when GBP is changed manually.
-                if (discountInput) {
-                     // Create a synthetic 'input' event to trigger the discount calculation logic
-                     const event = new Event('input', { bubbles: true });
-                     discountInput.dispatchEvent(event);
+                    // --- Trigger real-time update for other currencies (EUR, USD, etc.) ---
+                    // This re-runs the discount-input event listener logic for this tier
+                    const event = new Event('input', { bubbles: true });
+                    discountInput.dispatchEvent(event);
+                    // --- End of Trigger ---
                 }
-                // --- End of Trigger ---
+                // Do NOT modify `this.value` (the GBP input field) inside this 'input' listener
             }
         });
-    });
-    // --- End of Updated Base Price Calculation Logic ---
-  }
 
+        // Optional: Add a 'change' or 'blur' listener if you need to format or validate
+        // the final value *after* the user finishes typing.
+        // For example, you might want to ensure it has exactly 2 decimal places.
+        // Using 'change' is often less intrusive than 'blur'.
+        /*
+        gbpInput.addEventListener('change', function() {
+            const value = parseFloat(this.value);
+            if (!isNaN(value)) {
+                // Format to 2 decimal places on change/blur
+                this.value = value.toFixed(2);
+                // If you format the value, you might want to re-trigger calculations
+                // to ensure everything is consistent with the formatted value.
+                // However, be careful this doesn't create loops. Using 'input' above usually handles real-time needs.
+                // const event = new Event('input', { bubbles: true });
+                // this.dispatchEvent(event);
+            }
+        });
+        */
+    });
+    // --- End of GBP Price Change Calculation Logic ---
+  }
   // --- Rounding Functions ---
   function setupRounding() {
     const roundUpButton = document.getElementById('round-up-button');
     const roundDownButton = document.getElementById('round-down-button');
     const roundNearestButton = document.getElementById('round-nearest-button');
     const undoRoundingButton = document.getElementById('undo-rounding-button');
-
     // Initialize original prices map
     function initializeOriginalPrices() {
       document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]').forEach(input => {
         const key = input.name;
         if (!originalPrices.has(key)) {
-          originalPrices.set(key, input.value);
+          // Store the original *rounded* value for undo consistency
+          originalPrices.set(key, Math.round(parseFloat(input.value) || 0));
         }
       });
     }
-
     function roundPrices(method) {
         const roundingBaseInputs = document.querySelectorAll('input[name="rounding-base"]');
         let roundingBase = 10; // Default
@@ -722,22 +901,21 @@
                     roundedValue = Math.round(originalValue / factor) * factor;
                     break;
             }
-            // Update the input value
-            input.value = roundedValue.toFixed(2);
+            // Update the input value - Changed to Math.round for consistency
+            input.value = Math.round(roundedValue);
         });
         alert(`Prices rounded (${method}) to the nearest ${roundingBase}.`);
     }
-
     function undoRounding() {
       document.querySelectorAll('#volume-pricing-grid input.calculated-price[type="number"]').forEach(input => {
         const key = input.name;
         if (originalPrices.has(key)) {
+          // Restore the original *rounded* value
           input.value = originalPrices.get(key);
         }
       });
       alert('Rounding undone. Prices restored to original values.');
     }
-
     // Initialize original prices when page loads
     document.addEventListener('DOMContentLoaded', initializeOriginalPrices);
     if (roundUpButton) roundUpButton.addEventListener('click', () => roundPrices('up'));
@@ -746,7 +924,6 @@
     if (undoRoundingButton) undoRoundingButton.addEventListener('click', undoRounding);
   }
   // --- End of Rounding Functions ---
-
   // Initialize everything when page loads
   document.addEventListener('DOMContentLoaded', () => {
     setupStepNavigation();
@@ -755,7 +932,6 @@
     setupSaveAllButton();
     calculatePrices(); // Initialize calculations
     setupRounding(); // Initialize rounding functionality
-
     // Handle message display from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const message = urlParams.get('message');
@@ -768,6 +944,139 @@
       const cleanUrl = window.location.pathname + window.location.search.replace(/([&?])message=[^&]*/g, '').replace(/(&{2,})/g, '&').replace(/[?&]$/, '');
       window.history.replaceState({}, document.title, cleanUrl);
     }
+  });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+    const createPromoForm = document.getElementById('create-promo-form');
+    const createPromoButton = document.getElementById('create-promo-button');
+    const promoCodesList = document.getElementById('promo-codes-list');
+
+    // Load existing promo codes on page load
+    await loadPromoCodes();
+
+    // Handle form submission for creating a promo code
+    if (createPromoForm) {
+      createPromoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        createPromoButton.disabled = true;
+        createPromoButton.textContent = 'Creating...';
+
+        const formData = new FormData(createPromoForm);
+        const data = Object.fromEntries(formData.entries());
+
+        try {
+          const response = await fetch('/admin/createPromoCode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            alert('Promo code created successfully!');
+            createPromoForm.reset();
+            await loadPromoCodes(); // Refresh the list
+          } else {
+            alert(`Error: ${result.message}`);
+          }
+        } catch (err) {
+          console.error('Error creating promo code:', err);
+          alert('Failed to create promo code.');
+        } finally {
+          createPromoButton.disabled = false;
+          createPromoButton.textContent = 'Create Promo Code';
+        }
+      });
+    }
+
+    // Function to load and display promo codes
+    async function loadPromoCodes() {
+      try {
+        const response = await fetch('/admin/promo-codes');
+        const data = await response.json();
+        if (data.success && data.promoCodes) {
+          displayPromoCodes(data.promoCodes);
+        } else {
+          promoCodesList.innerHTML = '<p>Failed to load promo codes.</p>';
+        }
+      } catch (err) {
+        console.error('Error fetching promo codes:', err);
+        promoCodesList.innerHTML = '<p>Error loading promo codes.</p>';
+      }
+    }
+
+    // Function to display promo codes in the list
+    function displayPromoCodes(promoCodes) {
+      if (promoCodes.length === 0) {
+        promoCodesList.innerHTML = '<p>No promo codes found.</p>';
+        return;
+      }
+
+      let html = '<table style="width:100%; border-collapse: collapse;"><thead><tr><th>Code</th><th>Discount</th><th>Description</th><th>Valid From</th><th>Valid To</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+      promoCodes.forEach(code => {
+        const isActive = code.isActive ? 'Active' : 'Inactive';
+        const statusStyle = code.isActive ? 'color: green;' : 'color: red;';
+        const validToDisplay = code.validTo ? new Date(code.validTo).toLocaleString() : 'No Expiry';
+        html += `
+          <tr>
+            <td>${code.code}</td>
+            <td>${code.discountPercentage.toFixed(2)}%</td>
+            <td>${code.description || ''}</td>
+            <td>${new Date(code.validFrom).toLocaleString()}</td>
+            <td>${validToDisplay}</td>
+            <td style="${statusStyle}">${isActive}</td>
+            <td>
+              <button type="button" onclick="togglePromoCode('${code.id}', ${code.isActive})">${code.isActive ? 'Disable' : 'Enable'}</button>
+              <button type="button" onclick="deletePromoCode('${code.id}')">Delete</button>
+            </td>
+          </tr>
+        `;
+      });
+      html += '</tbody></table>';
+      promoCodesList.innerHTML = html;
+    }
+
+    // Global function to toggle promo code status (called from button)
+    window.togglePromoCode = async function(promoCodeId, currentStatus) {
+      const newStatus = !currentStatus;
+      try {
+        const response = await fetch(`/admin/promo-codes/${promoCodeId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: newStatus })
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert(`Promo code ${newStatus ? 'enabled' : 'disabled'} successfully.`);
+          await loadPromoCodes(); // Refresh the list
+        } else {
+          alert(`Error: ${result.message}`);
+        }
+      } catch (err) {
+        console.error('Error toggling promo code:', err);
+        alert('Failed to toggle promo code.');
+      }
+    };
+
+    // Global function to delete a promo code (called from button)
+    window.deletePromoCode = async function(promoCodeId) {
+      if (!confirm('Are you sure you want to delete this promo code?')) return;
+      try {
+        const response = await fetch(`/admin/promo-codes/${promoCodeId}`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+        if (result.success) {
+          alert('Promo code deleted successfully.');
+          await loadPromoCodes(); // Refresh the list
+        } else {
+          alert(`Error: ${result.message}`);
+        }
+      } catch (err) {
+        console.error('Error deleting promo code:', err);
+        alert('Failed to delete promo code.');
+      }
+    };
   });
 </script>
 </body>

@@ -4,6 +4,52 @@
   <meta charset="UTF-8" />
   <title>Customer Records</title>
   <link rel="stylesheet" href="/styles.css" />
+  <script>
+  (function() {
+    'use strict';
+    // Function to fetch and apply styles
+    async function applyDynamicStyles() {
+      try {
+        // Fetch styles from the server endpoint
+        const response = await fetch('/api/site-styles');
+        if (response.ok) {
+          const styles = await response.json();
+          const root = document.documentElement;
+
+          // Apply fetched styles to CSS variables
+          // Make sure the property names here match exactly:
+          // 1. The keys returned by your /api/site-styles endpoint
+          // 2. The CSS variable names defined in :root in styles.css
+          if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+          if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+          if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+          if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+          if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+          if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+          if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+          if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+          if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+          if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+          if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+          if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          // Add assignments for any other dynamic colors you have defined
+        } else {
+          console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+        }
+      } catch (error) {
+        console.error('Error applying dynamic styles:', error);
+        // Fail gracefully, default CSS variables or static CSS will be used
+      }
+    }
+
+    // Call the function when the page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyDynamicStyles);
+    } else {
+      applyDynamicStyles();
+    }
+  })();
+</script>
 </head>
 <body>
   <div class="titleDiv">
@@ -121,14 +167,5 @@
             </div>
   </div>
   
-    <script>
-    // Set the timeout duration in milliseconds (must match server-side maxAge)
-    const sessionTimeout = 5 * 60 * 1000;  //huom. lasketaan millisekunneissa, eli näyttää tyhmältä sen takia.
-
-    setTimeout(() => {
-        alert("Your session has expired. You will be redirected to request a new OTP.");
-        window.location.href = "/verify-email";
-      }, sessionTimeout);
-  </script>
 </body>
 </html>

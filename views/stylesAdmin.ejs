@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Styles Admin</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Basic styles for the admin page itself */
+    .color-input-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .color-input-group label {
+      width: 200px;
+      font-weight: bold;
+    }
+    .color-input-group input[type="color"] {
+      width: 60px;
+      height: 40px;
+      margin-right: 10px;
+    }
+    .color-input-group input[type="text"] {
+      width: 100px; /* Adjust width as needed */
+    }
+    .preview-box {
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      display: inline-block;
+    }
+    .preview-button {
+       padding: 10px 15px;
+       margin: 5px;
+       border: none;
+       border-radius: 5px;
+       cursor: default; /* Not clickable in preview */
+    }
+    .preview-section {
+        margin-top: 30px;
+        padding: 15px;
+        border: 1px dashed #ccc;
+    }
+    .preview-section h3 {
+        margin-top: 0;
+    }
+  </style>
+  <script>
+        // Update text fields when color pickers change
+    document.querySelectorAll('input[type="color"]').forEach(input => {
+        input.addEventListener('input', function() {
+            const textId = this.id + 'Text';
+            const textField = document.getElementById(textId);
+            if (textField) {
+                textField.value = this.value;
+            }
+
+            // Update preview dynamically
+            updatePreview();
+        });
+    });
+
+    function updatePreview() {
+        // Get current values from color inputs
+        const primaryColor = document.getElementById('primaryColor').value;
+        const primaryHoverColor = document.getElementById('primaryHoverColor').value;
+        const secondaryColor = document.getElementById('secondaryColor').value;
+        const secondaryTextColor = document.getElementById('secondaryTextColor').value;
+        const secondaryHoverColor = document.getElementById('secondaryHoverColor').value;
+        const backgroundColor = document.getElementById('backgroundColor').value;
+        const containerColor = document.getElementById('containerColor').value;
+        const textColor = document.getElementById('textColor').value;
+        const linkColor = document.getElementById('linkColor').value;
+        const linkHoverColor = document.getElementById('linkHoverColor').value;
+        const infoIconColor = document.getElementById('infoIconColor').value;
+        const infoIconHoverColor = document.getElementById('infoIconHoverColor').value;
+
+        // Update preview elements
+        document.querySelector('.preview-section .preview-button:nth-child(3)').style.backgroundColor = primaryColor;
+        document.querySelector('.preview-section .preview-button:nth-child(4)').style.backgroundColor = primaryHoverColor;
+
+        const secBtn1 = document.querySelector('.preview-section .preview-button:nth-child(7)');
+        secBtn1.style.backgroundColor = secondaryColor;
+        secBtn1.style.color = secondaryTextColor;
+        secBtn1.style.borderColor = secondaryTextColor;
+
+        const secBtn2 = document.querySelector('.preview-section .preview-button:nth-child(8)');
+        secBtn2.style.backgroundColor = secondaryHoverColor;
+        secBtn2.style.color = secondaryTextColor;
+        secBtn2.style.borderColor = secondaryTextColor;
+
+
+        const link1 = document.querySelector('.preview-section a:nth-child(2)');
+        link1.style.color = linkColor;
+        const link2 = document.querySelector('.preview-section a:nth-child(3)');
+        link2.style.color = linkHoverColor;
+
+        const icon1 = document.querySelector('.preview-section .info-icon:nth-child(2)');
+        icon1.style.backgroundColor = infoIconColor;
+        const icon2 = document.querySelector('.preview-section .info-icon:nth-child(3)');
+        icon2.style.backgroundColor = infoIconHoverColor;
+
+        const previewBox = document.querySelector('.preview-box');
+        previewBox.style.backgroundColor = containerColor;
+        previewBox.style.color = textColor;
+
+        const bgPreview = document.querySelector('.preview-section > div:last-child');
+        bgPreview.style.backgroundColor = backgroundColor;
+
+        // Update CSS variables on the page itself (optional, for live preview within admin)
+        document.documentElement.style.setProperty('--primary-color', primaryColor);
+        document.documentElement.style.setProperty('--primary-hover-color', primaryHoverColor);
+        document.documentElement.style.setProperty('--secondary-color', secondaryColor);
+        document.documentElement.style.setProperty('--secondary-text-color', secondaryTextColor);
+        document.documentElement.style.setProperty('--secondary-hover-color', secondaryHoverColor);
+        document.documentElement.style.setProperty('--background-color', backgroundColor);
+        document.documentElement.style.setProperty('--container-color', containerColor);
+        document.documentElement.style.setProperty('--text-color', textColor);
+        document.documentElement.style.setProperty('--link-color', linkColor);
+        document.documentElement.style.setProperty('--link-hover-color', linkHoverColor);
+        document.documentElement.style.setProperty('--info-icon-color', infoIconColor);
+        document.documentElement.style.setProperty('--info-icon-hover-color', infoIconHoverColor);
+
+    }
+
+    // Initialize preview on page load
+    document.addEventListener('DOMContentLoaded', updatePreview);
+  (function() {
+    'use strict';
+    // Function to fetch and apply styles
+    async function applyDynamicStyles() {
+      try {
+        // Fetch styles from the server endpoint
+        const response = await fetch('/api/site-styles');
+        if (response.ok) {
+          const styles = await response.json();
+          const root = document.documentElement;
+
+          // Apply fetched styles to CSS variables
+          // Make sure the property names here match exactly:
+          // 1. The keys returned by your /api/site-styles endpoint
+          // 2. The CSS variable names defined in :root in styles.css
+          if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
+          if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
+          if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
+          if (styles.secondaryTextColor) root.style.setProperty('--secondary-text-color', styles.secondaryTextColor);
+          if (styles.secondaryHoverColor) root.style.setProperty('--secondary-hover-color', styles.secondaryHoverColor);
+          if (styles.backgroundColor) root.style.setProperty('--background-color', styles.backgroundColor);
+          if (styles.containerColor) root.style.setProperty('--container-color', styles.containerColor);
+          if (styles.textColor) root.style.setProperty('--text-color', styles.textColor);
+          if (styles.linkColor) root.style.setProperty('--link-color', styles.linkColor);
+          if (styles.linkHoverColor) root.style.setProperty('--link-hover-color', styles.linkHoverColor);
+          if (styles.infoIconColor) root.style.setProperty('--info-icon-color', styles.infoIconColor);
+          if (styles.infoIconHoverColor) root.style.setProperty('--info-icon-hover-color', styles.infoIconHoverColor);
+          // Add assignments for any other dynamic colors you have defined
+        } else {
+          console.log('No custom styles found or error fetching them (Status: ' + response.status + ').');
+        }
+      } catch (error) {
+        console.error('Error applying dynamic styles:', error);
+        // Fail gracefully, default CSS variables or static CSS will be used
+      }
+    }
+
+    // Call the function when the page loads
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', applyDynamicStyles);
+    } else {
+      applyDynamicStyles();
+    }
+  })();
+</script>
+</head>
+<body>
+  <div class="container">
+    <h1>Site Styles Administration</h1>
+
+    <% if (locals.message) { %>
+      <div class="alert"><%= message %></div>
+    <% } %>
+
+    <form id="stylesForm" action="/stylesAdmin" method="POST">
+      <h2>Color Configuration</h2>
+
+      <div class="color-input-group">
+        <label for="primaryColor">Primary Color (e.g., Buttons):</label>
+        <input type="color" id="primaryColor" name="primaryColor" value="<%= styles.primaryColor || '#cc3180' %>">
+        <input type="text" id="primaryColorText" value="<%= styles.primaryColor || '#cc3180' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="primaryHoverColor">Primary Hover Color:</label>
+        <input type="color" id="primaryHoverColor" name="primaryHoverColor" value="<%= styles.primaryHoverColor || '#a02666' %>">
+        <input type="text" id="primaryHoverColorText" value="<%= styles.primaryHoverColor || '#a02666' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="secondaryColor">Secondary Color (e.g., Secondary Buttons):</label>
+        <input type="color" id="secondaryColor" name="secondaryColor" value="<%= styles.secondaryColor || '#ffffff' %>">
+        <input type="text" id="secondaryColorText" value="<%= styles.secondaryColor || '#ffffff' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="secondaryTextColor">Secondary Text Color:</label>
+        <input type="color" id="secondaryTextColor" name="secondaryTextColor" value="<%= styles.secondaryTextColor || '#cc3180' %>">
+        <input type="text" id="secondaryTextColorText" value="<%= styles.secondaryTextColor || '#cc3180' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="secondaryHoverColor">Secondary Hover Color:</label>
+        <input type="color" id="secondaryHoverColor" name="secondaryHoverColor" value="<%= styles.secondaryHoverColor || '#f0f0f0' %>">
+        <input type="text" id="secondaryHoverColorText" value="<%= styles.secondaryHoverColor || '#f0f0f0' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="backgroundColor">Background Color:</label>
+        <input type="color" id="backgroundColor" name="backgroundColor" value="<%= styles.backgroundColor || '#f0f2f5' %>">
+        <input type="text" id="backgroundColorText" value="<%= styles.backgroundColor || '#f0f2f5' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="containerColor">Container Color:</label>
+        <input type="color" id="containerColor" name="containerColor" value="<%= styles.containerColor || '#ffffff' %>">
+        <input type="text" id="containerColorText" value="<%= styles.containerColor || '#ffffff' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="textColor">Text Color:</label>
+        <input type="color" id="textColor" name="textColor" value="<%= styles.textColor || '#333333' %>">
+        <input type="text" id="textColorText" value="<%= styles.textColor || '#333333' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="linkColor">Link Color:</label>
+        <input type="color" id="linkColor" name="linkColor" value="<%= styles.linkColor || '#cc3180' %>">
+        <input type="text" id="linkColorText" value="<%= styles.linkColor || '#cc3180' %>" readonly>
+      </div>
+
+      <div class="color-input-group">
+        <label for="linkHoverColor">Link Hover Color:</label>
+        <input type="color" id="linkHoverColor" name="linkHoverColor" value="<%= styles.linkHoverColor || '#a02666' %>">
+        <input type="text" id="linkHoverColorText" value="<%= styles.linkHoverColor || '#a02666' %>" readonly>
+      </div>
+
+       <div class="color-input-group">
+        <label for="infoIconColor">Info Icon Color:</label>
+        <input type="color" id="infoIconColor" name="infoIconColor" value="<%= styles.infoIconColor || '#cc3180' %>">
+        <input type="text" id="infoIconColorText" value="<%= styles.infoIconColor || '#cc3180' %>" readonly>
+      </div>
+
+       <div class="color-input-group">
+        <label for="infoIconHoverColor">Info Icon Hover Color:</label>
+        <input type="color" id="infoIconHoverColor" name="infoIconHoverColor" value="<%= styles.infoIconHoverColor || '#a02666' %>">
+        <input type="text" id="infoIconHoverColorText" value="<%= styles.infoIconHoverColor || '#a02666' %>" readonly>
+      </div>
+
+      <button type="submit" class="primary-button">Save Styles</button>
+              <a href="/" class="secondary-button">Return</a>
+
+    </form>
+
+    <div class="preview-section">
+        <h3>Live Preview</h3>
+        <p><strong>Primary Button:</strong></p>
+        <button class="preview-button" style="
+            background-color: <%= styles.primaryColor || '#cc3180' %>;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: default;
+        ">Preview</button>
+        <button class="preview-button" style="
+            background-color: <%= styles.primaryHoverColor || '#a02666' %>;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: default;
+        ">Hover Preview</button>
+
+        <p style="margin-top: 15px;"><strong>Secondary Button:</strong></p>
+        <button class="preview-button" style="
+            background-color: <%= styles.secondaryColor || '#ffffff' %>;
+            color: <%= styles.secondaryTextColor || '#cc3180' %>;
+            border: 1px solid <%= styles.secondaryTextColor || '#cc3180' %>;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: default;
+        ">Preview</button>
+        <button class="preview-button" style="
+            background-color: <%= styles.secondaryHoverColor || '#f0f0f0' %>;
+            color: <%= styles.secondaryTextColor || '#cc3180' %>;
+            border: 1px solid <%= styles.secondaryTextColor || '#cc3180' %>;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: default;
+        ">Hover Preview</button>
+
+        <p style="margin-top: 15px;"><strong>Link:</strong>
+        <a href="#" style="
+            color: <%= styles.linkColor || '#cc3180' %>;
+            text-decoration: none;
+            margin-right: 15px;
+        ">Preview Link</a>
+        <a href="#" style="
+            color: <%= styles.linkHoverColor || '#a02666' %>;
+            text-decoration: none;
+        ">Hover Link</a>
+        </p>
+
+         <p style="margin-top: 15px;"><strong>Info Icon:</strong>
+         <span class="info-icon" style="
+            background-color: <%= styles.infoIconColor || '#cc3180' %>;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
+            text-align: center;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 15px;
+        ">i</span>
+         <span class="info-icon" style="
+            background-color: <%= styles.infoIconHoverColor || '#a02666' %>;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            width: 18px;
+            height: 18px;
+            line-height: 18px;
+            text-align: center;
+            border-radius: 50%;
+            display: inline-block;
+        ">i</span>
+        </p>
+
+        <div class="preview-box" style="
+            background-color: <%= styles.containerColor || '#ffffff' %>;
+            color: <%= styles.textColor || '#333333' %>;
+            border: 1px solid #ccc;
+        ">
+            <p>This is a preview of text inside a container.</p>
+            <p>Background: <code><%= styles.containerColor || '#ffffff' %></code></p>
+            <p>Text Color: <code><%= styles.textColor || '#333333' %></code></p>
+        </div>
+
+        <div style="background-color: <%= styles.backgroundColor || '#f0f2f5' %>; padding: 10px; margin-top: 10px;">
+            <p>This shows the page background color.</p>
+            <p>Background: <code><%= styles.backgroundColor || '#f0f2f5' %></code></p>
+        </div>
+    </div>
+
+  </div>
+</body>
+</html>
