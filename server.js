@@ -580,28 +580,43 @@ app.get("/calculator", async (req, res) => {
     const { resource: discountDoc } = await discountContainer
       .item("discount-rules", "rules") // item(id, partitionKey)
       .read();
-
     if (!discountDoc || !discountDoc.commitments) {
       throw new Error("Discount document or commitments field not found");
     }
-
     const commitmentOptions = Object.entries(discountDoc.commitments).map(([key, value]) => ({
       label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()), // "1_year" → "1 Year"
       value: value * 100,
       key: key
     }));
 
-    const currentSubscriberDiscount = (discountDoc.currentSubscriber || 0) * 100;
+    // --- Modified: Fetch the title for the additional discount ---
+    let additionalDiscountTitle = "Eligible for discount?"; // Default title
+    let additionalDiscountValue = 0; // Default value
+
+    if (discountDoc.additionalDiscount) {
+        // If the new structure exists, use it
+        additionalDiscountTitle = discountDoc.additionalDiscount.Title || "Eligible for discount?";
+        additionalDiscountValue = (discountDoc.additionalDiscount.additionalDiscountAmount || 0) * 100;
+    } else if (discountDoc.currentSubscriber !== undefined) {
+        // Fallback: If old structure exists, use it (though it won't be updated anymore)
+        additionalDiscountValue = (discountDoc.currentSubscriber || 0) * 100;
+        // Keep default title for migrated data unless you want to migrate the title too
+    }
+    // --- End Modification ---
 
     res.render("calculator", {
       commitmentOptions,
-      currentSubscriberDiscount
+      // --- Pass the new data ---
+      additionalDiscountTitle,
+      additionalDiscountValue
+      // ---
     });
   } catch (err) {
     console.error("Failed to load discount options:", err.message);
     res.status(500).send("Failed to load discount options");
   }
 });
+
 
 
 
@@ -906,8 +921,28 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       // currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll() // Removed
     ]);
 
-    // Process discount rules (remains the same)
+    // --- Modified: Process discount rules to include title and additionalDiscount ---
     const discountRules = discountRulesResponse.resource || {};
+    let additionalDiscountData = {
+        title: "Eligible for discount?", // Default title
+        value: 0
+    };
+
+    if (discountRules.additionalDiscount) {
+        // If the new structure exists, use it
+        additionalDiscountData = {
+            title: discountRules.additionalDiscount.Title || "Eligible for discount?",
+            value: parseFloat(discountRules.additionalDiscount.additionalDiscountAmount) || 0
+        };
+    } else if (discountRules.currentSubscriber !== undefined) {
+        // Fallback: If old structure exists, migrate it
+        additionalDiscountData = {
+            title: "Eligible for discount?", // Default title for migrated data
+            value: parseFloat(discountRules.currentSubscriber) || 0
+        };
+    }
+    // --- End Modification ---
+
     if (discountRules.commitments) {
       discountRules.commitments = Object.entries(discountRules.commitments).map(([key, value]) => ({
         key,
@@ -959,8 +994,11 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     res.render("admin", {
       discountRules: discountRules || {
         commitments: [],
-        currentSubscriber: 0
+        // Removed currentSubscriber
       },
+      // --- Pass the new additionalDiscountData ---
+      additionalDiscountData: additionalDiscountData,
+      // ---
       ppus: ppus || {},
       volumePricing: volumePricing || [],
       basePrices: basePrices, // Pass base prices directly
@@ -969,7 +1007,7 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       message: req.query.message || null,
       baseCurrency: 'GBP',
       activeStep: req.query.step ? parseInt(req.query.step) : 1,
-      message: req.query.message || null
+      message: req.query.message || null // Ensure message is only defined once
     });
   } catch (err) {
     console.error("Error loading admin data:", err);
@@ -977,8 +1015,14 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     res.status(500).render("admin", {
       discountRules: {
         commitments: [],
-        currentSubscriber: 0
+        // Removed currentSubscriber
       },
+      // --- Pass default additionalDiscountData on error ---
+      additionalDiscountData: {
+        title: "Eligible for discount?",
+        value: 0
+      },
+      // ---
       ppus: {},
       volumePricing: [],
       basePrices: {
@@ -1080,26 +1124,36 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
 // POST /admin/update - save updated variables
 app.post("/admin/updateDiscounts", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    const { commitments, currentSubscriber } = req.body;
-    
+    const { commitments, additionalDiscountTitle, additionalDiscountValue } = req.body; // Changed variable names
+
     // Convert commitments from form data to object
     const commitmentsObj = {};
     for (const [key, value] of Object.entries(commitments)) {
       commitmentsObj[key] = parseFloat(value) / 100;
     }
 
+    // --- Modified: Create the new additionalDiscount structure ---
+    const additionalDiscountObj = {
+        Title: additionalDiscountTitle || "Eligible for discount?", // Use provided title or default
+        additionalDiscountAmount: parseFloat(additionalDiscountValue) / 100 // Convert from percentage
+    };
+    // --- End Modification ---
+
     const update = {
       id: "discount-rules",
       rules: "rules", // partition key
       commitments: commitmentsObj,
-      currentSubscriber: parseFloat(currentSubscriber) / 100
+      // --- Removed: currentSubscriber ---
+      // --- Added: additionalDiscount ---
+      additionalDiscount: additionalDiscountObj
+      // ---
     };
 
     await discountContainer.items.upsert(update);
     res.redirect("/admin?step=4&message=Discounts updated successfully");
   } catch (err) {
     console.error("Error updating discounts:", err);
-    res.redirect("/admin?step=4&message=Error updating discounts");
+    res.redirect("/admin?step=4&message=Error updating discounts: " + err.message); // Include error message
   }
 });
 
@@ -1504,9 +1558,8 @@ app.post("/deleteCustomer", async (req, res) => {
 // POST /calculate
 app.post("/calculate", async (req, res) => {
   // Extract form data
-  const { amount, currency, commitmentDiscount, isCurrentSubscriber, promoCode } = req.body;
+  const { amount, currency, commitmentDiscount, isCurrentSubscriber, promoCode } = req.body; // `isCurrentSubscriber` is still the checkbox name
   const numSubscribers = Number(amount);
-
   // Input validation
   if (isNaN(numSubscribers) || numSubscribers <= 0) {
       return res.status(400).send("Invalid number of subscribers.");
@@ -1514,17 +1567,25 @@ app.post("/calculate", async (req, res) => {
   if (!currency) {
       return res.status(400).send("Currency is required.");
   }
-
   try {
     // --- Fetch Discount Rules ---
     const { resource: discountDoc } = await discountContainer.item("discount-rules", "rules").read();
     if (!discountDoc) {
         return res.status(500).send("Discount rules not found.");
     }
-
     // --- Determine Discount Decimals ---
-    // 1. Subscriber Discount
-    const subscriberDiscountDecimal = isCurrentSubscriber === "on" ? (discountDoc.currentSubscriber || 0) : 0;
+    // --- Modified: Use the new structure for the additional discount ---
+    let subscriberDiscountDecimal = 0; // Default value
+    if (isCurrentSubscriber === "on") { // Checkbox is checked
+        if (discountDoc.additionalDiscount) {
+            // If new structure exists, use it
+            subscriberDiscountDecimal = discountDoc.additionalDiscount.additionalDiscountAmount || 0;
+        } else if (discountDoc.currentSubscriber !== undefined) {
+            // Fallback: If old structure exists, use it
+            subscriberDiscountDecimal = discountDoc.currentSubscriber || 0;
+        }
+    }
+    // --- End Modification ---
 
     // 2. Promo Code Discount (Validate internally)
     let promoDiscountDecimal = 0;
@@ -1533,7 +1594,6 @@ app.post("/calculate", async (req, res) => {
         try {
             const trimmedCode = promoCode.trim();
             const now = new Date().toISOString();
-
             // Query for the code, ensuring it's active and within validity period
             const { resources: promoCodes } = await promoCodesContainer.items
               .query({
@@ -1548,7 +1608,6 @@ app.post("/calculate", async (req, res) => {
                 ]
               })
               .fetchAll();
-
             const promoCodeDoc = promoCodes[0];
             if (promoCodeDoc) {
                 promoDiscountDecimal = promoCodeDoc.discountPercentage / 100; // Convert to decimal
@@ -1563,7 +1622,6 @@ app.post("/calculate", async (req, res) => {
              // Handle error, maybe log, but don't crash calculation
         }
     }
-
     // --- Fetch Pricing Data (PPU or Volume) ---
     let ppuValueRaw = 0;
     let usedVolumePricing = false;
@@ -1587,56 +1645,45 @@ app.post("/calculate", async (req, res) => {
       const latestPPU = ppuDocs[0];
       ppuValueRaw = latestPPU?.ppu?.[currency]?.standard || 0;
     }
-
     const ppuValue = Number(ppuValueRaw);
     if (isNaN(ppuValue)) {
         console.warn(`ppuValueRaw '${ppuValueRaw}' could not be converted to a valid number for currency ${currency}. Defaulting to 0.`);
     }
-
     // --- Fetch Commitment Options ---
     const commitmentOptions = Object.entries(discountDoc.commitments || {}).map(([key, value]) => ({
       key,
       label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
       value: parseFloat(value),
     }));
-
     // --- CALCULATE PRICES WITH MULTIPLICATIVE DISCOUNTS ---
     const allPrices = commitmentOptions.map(option => {
         const commitmentDiscountDecimal = option.value; // e.g., 0.15 for 15%
-
         // --- KEY CHANGE: Apply discounts multiplicatively ---
         // Formula: Final Multiplier = (1 - D_subscriber) * (1 - D_promo) * (1 - D_commitment)
         const combinedDiscountMultiplier =
-            (1 - subscriberDiscountDecimal) *
+            (1 - subscriberDiscountDecimal) * // Use the potentially migrated or new value
             (1 - promoDiscountDecimal) *
             (1 - commitmentDiscountDecimal);
-
         let annualPrice, monthlyPrice, pricePerUser;
-
         if (usedVolumePricing) {
-            // --- Volume Pricing Calculation ---
-            // Volume pricing gives an annual base price
-            annualPrice = volumeBasePrice * combinedDiscountMultiplier;
-            // Price per user is annual price divided by number of users
-            pricePerUser = annualPrice / numSubscribers; // This is price per user per *year*
-            // Convert annual to effective monthly
-            monthlyPrice = annualPrice / 12;
+          // - Volume Pricing Calculation -
+          // Volume pricing gives an annual base price
+          annualPrice = volumeBasePrice * combinedDiscountMultiplier;
+          // Convert annual to effective monthly
+          monthlyPrice = annualPrice / 12;
+          // Calculate price per user per month
+          pricePerUser = monthlyPrice / numSubscribers; // This is now MONTHLY per user
         } else {
-            // --- PPU Pricing Calculation ---
-            // Calculate base monthly price before any discounts
-            const baseMonthlyPrice = numSubscribers * ppuValue;
-            // Apply the combined discount multiplier to the base monthly price
-            monthlyPrice = baseMonthlyPrice * combinedDiscountMultiplier;
-            // Convert discounted monthly price to annual price
-            annualPrice = monthlyPrice * 12;
-            // Calculate price per user per month
-            pricePerUser = monthlyPrice / numSubscribers;
+          // - PPU Pricing Calculation -
+          const baseMonthlyPrice = numSubscribers * ppuValue;
+          monthlyPrice = baseMonthlyPrice * combinedDiscountMultiplier;
+          annualPrice = monthlyPrice * 12;
+          // Calculate price per user per month
+          pricePerUser = monthlyPrice / numSubscribers; // Already correct
         }
-
         // Determine if this option is the one selected in the form submission
         // commitmentDiscount from req.body is expected to be a percentage string like "15.0"
         const isSelected = option.value === (parseFloat(commitmentDiscount) / 100);
-
         return {
             ...option, // key, label, value
             monthlyPrice: Number(monthlyPrice.toFixed(2)),
@@ -1645,19 +1692,29 @@ app.post("/calculate", async (req, res) => {
             isSelected: isSelected
         };
     });
-
     // Find the option that was selected, or default to the first one
     const selectedOption = allPrices.find(p => p.isSelected) || allPrices[0];
-
     // --- END CALCULATE PRICES ---
+
+    // --- Modified: Pass the title to the result view ---
+    let additionalDiscountTitle = "Eligible for discount?"; // Default title
+    if (discountDoc.additionalDiscount) {
+        additionalDiscountTitle = discountDoc.additionalDiscount.Title || "Eligible for discount?";
+    } else if (discountDoc.currentSubscriber !== undefined) {
+        // Keep default title for migrated data unless you want to migrate the title too
+    }
+    // --- End Modification ---
 
     // Render the result page, passing the calculated data
     // Make sure QuoteCustomerEmail is NOT included here unless it's specifically needed and defined
     res.render("result", {
       amount: numSubscribers,
       currency: currency,
-      // Pass discount percentages for display (convert decimals back to percentages)
+      // --- Modified: Pass the discount title and value for display ---
+      // subscriberDiscount was calculated as a decimal, convert for display
       subscriberDiscount: Number((subscriberDiscountDecimal * 100).toFixed(2)),
+      subscriberDiscountTitle: additionalDiscountTitle, // Pass the title
+      // ---
       // promoDiscount was calculated as a decimal, convert for display
       promoDiscount: Number((promoDiscountDecimal * 100).toFixed(2)),
       promoDescription: promoDescription || "", // Pass promo description if available
@@ -1669,12 +1726,12 @@ app.post("/calculate", async (req, res) => {
       selectedOption: selectedOption
       // QuoteCustomerEmail: ... // DO NOT PASS THIS unless it's defined in this context (e.g., from a previous step or form)
     });
-
   } catch (err) {
     console.error("Calculation error:", err.message);
     res.status(500).send("Failed to calculate subscription price.");
   }
 });
+
 
 
 // POST /save-quote
@@ -1814,13 +1871,34 @@ app.post("/admin/createPromoCode", /*requireOrderAdminOTP*/ async (req, res) => 
 
 app.get("/admin/promo-codes", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-     const { resources: promoCodes } = await promoCodesContainer.items
-      .query({
-        query: "SELECT * FROM c ORDER BY c.createdAt DESC"
-      })
-      .fetchAll();
+    const { resources: promoCodes } = await promoCodesContainer.items.query({
+      query: "SELECT * FROM c ORDER BY c.createdAt DESC"
+    }).fetchAll();
 
-     res.json({ success: true, promoCodes });
+    // --- Add logic to determine effective status ---
+    const now = new Date().toISOString();
+    const promoCodesWithEffectiveStatus = promoCodes.map(code => {
+      let isEffectivelyActive = code.isActive; // Start with the stored isActive flag
+
+      // Check if the code is within the valid date range
+      if (isEffectivelyActive) { // Only check dates if it's flagged as active
+        if (code.validFrom && code.validFrom > now) {
+          isEffectivelyActive = false; // Not yet valid
+        } else if (code.validTo && code.validTo < now) {
+          isEffectivelyActive = false; // Expired
+        }
+      }
+
+      // Add the effective status to the object
+      return {
+        ...code,
+        isEffectivelyActive: isEffectivelyActive
+      };
+    });
+    // --- End of logic ---
+
+    // Send the modified list with effective status
+    res.json({ success: true, promoCodes: promoCodesWithEffectiveStatus });
   } catch (err) {
     console.error("Error fetching promo codes:", err);
     res.status(500).json({ success: false, message: "Error fetching promo codes." });

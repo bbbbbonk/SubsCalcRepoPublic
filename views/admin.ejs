@@ -24,7 +24,6 @@
         margin: 20px 0;
         font-weight: bold;
       }
-      /* Style for loading state */
       .saving {
         opacity: 0.7;
         pointer-events: none;
@@ -67,12 +66,10 @@
         flex: 1;
         min-width: 120px;
       }
-      /* Highlight editable GBP fields */
       .editable-gbp {
         background-color: #e6f7ff;
         border: 1px solid #1890ff;
       }
-      /* Style for calculated annual price display */
       .base-calculated-annual-price-display {
           background-color: #f0f0f0; /* Light grey background */
           color: #333; /* Darker text for contrast */
@@ -98,7 +95,7 @@
         text-align: right;
       }
       .table-container {
-        overflow-x: auto; /* Add horizontal scroll if table is wide */
+        overflow-x: auto; 
         margin-top: 20px;
       }
   </style>
@@ -114,10 +111,6 @@
           const styles = await response.json();
           const root = document.documentElement;
 
-          // Apply fetched styles to CSS variables
-          // Make sure the property names here match exactly:
-          // 1. The keys returned by your /api/site-styles endpoint
-          // 2. The CSS variable names defined in :root in styles.css
           if (styles.primaryColor) root.style.setProperty('--primary-color', styles.primaryColor);
           if (styles.primaryHoverColor) root.style.setProperty('--primary-hover-color', styles.primaryHoverColor);
           if (styles.secondaryColor) root.style.setProperty('--secondary-color', styles.secondaryColor);
@@ -158,10 +151,10 @@
   </div>
   <div class="container">
     <div class="step-indicator">
-      <h2 id="current-step-title">Step 1: Edit PPUs</h2> <!-- Updated initial title -->
+      <h2 id="current-step-title">Step 1: Edit PPUs</h2>
     </div>
-    <!-- Step 1: PPUs (was Step 2) -->
-    <div id="step1" class="step-container active"> <!-- Changed ID and made active -->
+    <!-- Step 1: PPUs -->
+    <div id="step1" class="step-container active">
       <h2>Per-User Pricing (PPU)</h2>
       <p>Per-User pricing is used when the user amount is lower than the lowest volume pricing tier.</p>
       <form id="ppus-form" action="/admin/updatePPUs" method="POST">
@@ -178,11 +171,11 @@
       </form>
       <div class="step-navigation">
         <button disabled>Previous</button>
-        <button class="next-step" data-next="2">Next: Edit Base Prices</button> <!-- Updated data-next -->
+        <button class="next-step" data-next="2">Next: Edit Base Prices</button> 
       </div>
     </div>
-    <!-- Step 2: Base Prices (was Step 3) -->
-    <div id="step2" class="step-container"> <!-- Changed ID -->
+    <!-- Step 2: Base Prices -->
+    <div id="step2" class="step-container"> 
       <h2>Monthly Base Prices for Volume Pricing (per user)</h2>
       <p>The monthly base price is used to calculate the volume pricing using the base price and volume discount.</p>
       <form id="base-prices-form" action="/admin/updateBasePrices" method="POST">
@@ -225,12 +218,12 @@
         </div>
       </form>
       <div class="step-navigation">
-        <button class="prev-step" data-prev="1">Previous: PPUs</button> <!-- Updated data-prev -->
-        <button class="next-step" data-next="3">Next: Edit Volume Pricing</button> <!-- Updated data-next -->
+        <button class="prev-step" data-prev="1">Previous: PPUs</button> 
+        <button class="next-step" data-next="3">Next: Edit Volume Pricing</button> 
       </div>
     </div>
-    <!-- Step 3: Volume Pricing (was Step 4) -->
-    <div id="step3" class="step-container"> <!-- Changed ID -->
+    <!-- Step 3: Volume Pricing -->
+    <div id="step3" class="step-container">
       <h2>Volume Pricing Tiers</h2>
       <p>Each box represents a pricing tier. Meaning that if the user amount if for example 1350, the pricing tier for 1400 users is used.</p>
       <p>The prices are calculated by either editing the volume discount or the GBP price. Both ways the prices match with each other.</p>
@@ -250,7 +243,7 @@
             <div class="form-group">
               <label><%= currency %> Total Price</label>
               <input type="number" name="subscriptions[<%= currency %>]" step="1" min="0" required
-                     disabled class="new-tier-calculated-price" data-currency="<%= currency %>"> <!-- Changed step -->
+                     disabled class="new-tier-calculated-price" data-currency="<%= currency %>">
             </div>
           <% }) %>
           <button type="submit" id="add-tier-button">Add New Tier</button>
@@ -317,33 +310,60 @@
         </div>
       </div>
       <div class="step-navigation">
-        <button class="prev-step" data-prev="2">Previous: Base Prices</button> <!-- Updated data-prev -->
-        <button class="next-step" data-next="4">Next: Edit Discounts</button> <!-- Updated data-next -->
+        <button class="prev-step" data-prev="2">Previous: Base Prices</button>
+        <button class="next-step" data-next="4">Next: Edit Discounts</button>
       </div>
     </div>
-    <!-- Step 4: Discounts (was Step 1) -->
+    <!-- Step 4: Discounts -->
     <div id="step4" class="step-container">
       <h2>Discount Settings</h2>
-      <form id="discounts-form" action="/admin/updateDiscounts" method="POST">
-        <div class="variable-grid">
-          <% if (discountRules.commitments) { %>
-            <% discountRules.commitments.forEach((commitment, index) => { %>
-              <div class="variable-card">
-                <h3><%= commitment.name %></h3>
-                <label>Discount Percentage</label>
-                <input type="number" name="commitments[<%= commitment.key %>]"
-                  value="<%= (commitment.value * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
-              </div>
-            <% }) %>
-          <% } %>
-          <div class="variable-card">
-            <h3>Additional Discounts</h3>
-            <label>Discount Percentage</label>
-            <input type="number" name="currentSubscriber"
-              value="<%= (discountRules.currentSubscriber * 100).toString() %>" step="0.00000000000000000001" min="0" max="100">
-          </div>
-        </div>
-      </form>
+        <form id="discountForm" action="/admin/updateDiscounts" method="POST">
+
+          <!-- Commitment Period Discounts -->
+          <fieldset>
+            <legend>Commitment Period Discounts</legend>
+            <table>
+              <thead>
+                <tr>
+                  <th>Period</th>
+                  <th>Discount (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (discountRules.commitments && discountRules.commitments.length > 0) { %>
+                  <% discountRules.commitments.forEach(commitment => { %>
+                    <tr>
+                      <td><%= commitment.name %></td>
+                      <td>
+                        <input type="number" step="0.01" min="0" max="100"
+                              name="commitments[<%= commitment.key %>]"
+                              value="<%= (commitment.value * 100).toFixed(2) %>" required />
+                      </td>
+                    </tr>
+                  <% }); %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="2">No commitment periods found.</td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </fieldset>
+
+          <!-- --- Modified: Additional Discount Section --->
+          <fieldset>
+            <legend>Additional Discount</legend>
+            <label for="additionalDiscountTitle">Discount Title:</label>
+            <input type="text" id="additionalDiscountTitle" name="additionalDiscountTitle"
+                  value="<%= additionalDiscountData.title %>" placeholder="e.g., Existing Customer Discount" required />
+
+            <label for="additionalDiscountValue">Discount Value (%):</label>
+            <input type="number" id="additionalDiscountValue" name="additionalDiscountValue" step="0.01" min="0" max="100"
+                  value="<%= (additionalDiscountData.value * 100).toFixed(2) %>" required />
+          </fieldset>
+          <!-- --- End Modification --->
+          <button type="submit" class="primary-button">Update Discounts</button>
+        </form>
 
       <!-- --- NEW PROMO CODES SECTION --- -->
       <div class="promo-codes-section" style="margin-top: 30px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
@@ -1006,35 +1026,37 @@
     }
 
     // Function to display promo codes in the list
-    function displayPromoCodes(promoCodes) {
-      if (promoCodes.length === 0) {
-        promoCodesList.innerHTML = '<p>No promo codes found.</p>';
-        return;
-      }
+function displayPromoCodes(promoCodes) {
+  if (promoCodes.length === 0) {
+    promoCodesList.innerHTML = '<p>No promo codes found.</p>';
+    return;
+  }
 
-      let html = '<table style="width:100%; border-collapse: collapse;"><thead><tr><th>Code</th><th>Discount</th><th>Description</th><th>Valid From</th><th>Valid To</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
-      promoCodes.forEach(code => {
-        const isActive = code.isActive ? 'Active' : 'Inactive';
-        const statusStyle = code.isActive ? 'color: green;' : 'color: red;';
-        const validToDisplay = code.validTo ? new Date(code.validTo).toLocaleString() : 'No Expiry';
-        html += `
-          <tr>
-            <td>${code.code}</td>
-            <td>${code.discountPercentage.toFixed(2)}%</td>
-            <td>${code.description || ''}</td>
-            <td>${new Date(code.validFrom).toLocaleString()}</td>
-            <td>${validToDisplay}</td>
-            <td style="${statusStyle}">${isActive}</td>
-            <td>
-              <button type="button" onclick="togglePromoCode('${code.id}', ${code.isActive})">${code.isActive ? 'Disable' : 'Enable'}</button>
-              <button type="button" onclick="deletePromoCode('${code.id}')">Delete</button>
-            </td>
-          </tr>
-        `;
-      });
-      html += '</tbody></table>';
-      promoCodesList.innerHTML = html;
-    }
+  let html = '<table style="width:100%; border-collapse: collapse;"><thead><tr><th>Code</th><th>Discount</th><th>Description</th><th>Valid From</th><th>Valid To</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+  promoCodes.forEach(code => {
+    // --- Use the effective status for display ---
+    const isActiveDisplay = code.isEffectivelyActive; // Use the calculated status
+    const statusText = isActiveDisplay ? 'Active' : 'Inactive';
+    const statusStyle = isActiveDisplay ? 'color: green;' : 'color: red;';
+    // --- End of change ---
+
+    const validToDisplay = code.validTo ? new Date(code.validTo).toLocaleString() : 'No Expiry';
+    html += `<tr>
+      <td>${code.code}</td>
+      <td>${code.discountPercentage.toFixed(2)}%</td>
+      <td>${code.description || ''}</td>
+      <td>${new Date(code.validFrom).toLocaleString()}</td>
+      <td>${validToDisplay}</td>
+      <td style="${statusStyle}">${statusText}</td> <!-- Use calculated status text and style -->
+      <td>
+        <button type="button" onclick="togglePromoCode('${code.id}', ${code.isActive})">${code.isActive ? 'Disable' : 'Enable'}</button> <!-- Keep sending the stored isActive for toggle -->
+        <button type="button" onclick="deletePromoCode('${code.id}')">Delete</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  promoCodesList.innerHTML = html;
+}
 
     // Global function to toggle promo code status (called from button)
     window.togglePromoCode = async function(promoCodeId, currentStatus) {

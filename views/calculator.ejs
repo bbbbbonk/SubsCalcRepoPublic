@@ -4,6 +4,11 @@
   <meta charset="UTF-8" />
   <title>Subscription Calculator</title>
   <link rel="stylesheet" href="/styles.css" />
+  <style>
+    button{
+      margin-top:20px;
+    }
+  </style>
 </head>
 <body>
   <div class="calcDiv">
@@ -14,9 +19,9 @@
 
       <label for="currency">Currency:</label>
       <select id="currency" name="currency" required>
+        <option value="GBP">GBP</option>
         <option value="USD">USD</option>
         <option value="EUR">EUR</option>
-        <option value="GBP">GBP</option>
       </select>
 
       <!-- Display commitment options as static text, send default value -->
@@ -32,10 +37,12 @@
       <!-- For this example, we'll use the first option's value, or 0 if none -->
       <input type="hidden" name="commitmentDiscount" value="<%= (commitmentOptions.length > 0 ? commitmentOptions[0].value * 100 : 0) %>" />
 
+      <!-- --- Modified: Use the fetched title for the checkbox label --->
       <label>
         <input type="checkbox" id="isCurrentSubscriber" name="isCurrentSubscriber" />
-        Eligible for discount? (<%= currentSubscriberDiscount %>% discount)
+        <%= additionalDiscountTitle %> (<%= additionalDiscountValue.toFixed(1) %>% discount)
       </label>
+      <!-- --- End Modification --->
 
       <!-- --- NEW PROMO CODE INPUT --- -->
       <div class="promo-code-section" style="margin-top: 20px;">

@@ -47,6 +47,108 @@
       }
     })();
   </script>
+  <style>
+    .resultDiv {
+  max-width: 900px; /* Increased from 800px */
+  width: 90%;
+  margin: 30px auto; /* Increased top/bottom margin */
+  padding: 50px 60px; /* Increased padding for spacious feel */
+  background-color: var(--container-color);
+  border-radius: 12px;
+  box-shadow: var(--box-shadow);
+}
+
+/* Headings and paragraphs: More breathing room */
+.resultDiv h1 {
+  text-align: center;
+  margin-bottom: 24px;
+  color: var(--primary-color);
+}
+
+.resultDiv p {
+  margin-bottom: 16px; /* Increased spacing between paragraphs */
+  line-height: 1.6;
+}
+
+/* Price Comparison Table: Enhanced spacing and borders */
+.price-comparison {
+  border: 1px solid var(--border-color-light);
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: white; /* Ensures clean background */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Subtle shadow */
+}
+
+/* Table Rows */
+.price-row {
+  display: flex;
+  border-bottom: 1px solid var(--border-color-light); /* Clear horizontal lines */
+  cursor: pointer;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  align-items: center; /* Vertically center content */
+}
+
+/* Remove bottom border from the last row to avoid double line */
+.price-row:last-child {
+  border-bottom: none;
+}
+
+/* Hover and Selected States */
+.price-row:hover {
+  background-color: var(--price-row-hover-bg);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+}
+
+.price-row.selected {
+  background-color: var(--price-row-selected-bg);
+  border-left: 5px solid var(--primary-color); /* Stronger indicator */
+}
+
+.price-row.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background-color: var(--primary-color);
+}
+
+/* Header Row - Make it stand out */
+.price-row.header-row {
+  background-color: var(--price-row-header-bg);
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--border-color-dark); /* Stronger header separator */
+  color: var(--text-color);
+}
+
+/* Table Columns - Increased width and spacing */
+.col-period {
+  flex: 2.5; /* Give more space to the period */
+  font-weight: 500;
+}
+
+.col-discount,
+.col-monthly,
+.col-annual,
+.col-per-user {
+  flex: 1.3; /* Increased from 1 for more column space */
+  text-align: right;
+  padding-left: 10px; /* Space between columns */
+}
+
+/* Optional: Add subtle vertical separators between data columns */
+.price-row:not(.header-row) .col-discount,
+.price-row:not(.header-row) .col-monthly,
+.price-row:not(.header-row) .col-annual {
+  border-right: 1px dashed var(--border-color-light); /* Dashed line for separation */
+  margin-right: 1px;
+  padding-right: 15px;
+}
+
+  </style>
 </head>
 <body>
   <div class="resultDiv"> <!-- This class in CSS provides the wider layout -->
@@ -55,9 +157,10 @@
     <p><strong>Currency:</strong> <span id="selectedCurrency"><%= currency %></span></p>
 
     <!-- Display Subscriber Discount if applicable -->
-    <% if (subscriberDiscount > 0) { %>
-      <p><strong>Subscriber Discount:</strong> <%= Number(subscriberDiscount).toFixed(1) %>%</p>
+    <% if (locals.subscriberDiscount && subscriberDiscount > 0) { %>
+      <p><strong><%= subscriberDiscountTitle %>:</strong> <%= Number(subscriberDiscount).toFixed(1) %>%</p>
     <% } %>
+    <!-- --- End Modification --->
 
     <!-- Display Promo Code Information -->
     <% if (locals.promoDiscount && promoDiscount > 0) { %>
@@ -95,7 +198,7 @@
     <div class="summary" id="summarySection">
       <% const displayOption = selectedOption; %>
       <p><strong>Commitment Period:</strong> <span id="summaryPeriod"><%= displayOption.label %></span></p>
-      <p><strong>Applied Volume Discount:</strong> <span id="summaryDiscount"><%= (displayOption.value * 100).toFixed(1) %></span>%</p>
+      <p><strong>Commitment Discount:</strong> <span id="summaryDiscount"><%= (displayOption.value * 100).toFixed(1) %></span>%</p>
       <p><strong>Monthly Price:</strong> <span id="summaryCurrency"><%= currency %></span> <span id="summaryMonthlyPrice"><%= parseFloat(displayOption.monthlyPrice).toFixed(2) %></span></p>
       <p><strong>Annual Price:</strong> <span id="summaryCurrency2"><%= currency %></span> <span id="summaryAnnualPrice"><%= parseFloat(displayOption.annualPrice).toFixed(2) %></span></p>
       <p><strong>Price Per User/Month:</strong> <span id="summaryCurrency3"><%= currency %></span> <span id="summaryPricePerUser"><%= parseFloat(displayOption.pricePerUser).toFixed(4) %></span></p>
