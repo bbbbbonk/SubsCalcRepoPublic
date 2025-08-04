@@ -222,7 +222,6 @@ const calcDatabase = cosmosClient.database("CalculatorConfigDB");
 const discountContainer = calcDatabase.container("Discounts");
 const volumePricingContainer = calcDatabase.container("VolumePricing");
 const ppusContainer = calcDatabase.container("PPUs");
-const currenciesContainer = calcDatabase.container("ExchangeRate");
 
 const customerDatabase = cosmosClient.database("CustomerInfo");
 const customerContainer = customerDatabase.container("CustomerInfo");
