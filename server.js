@@ -9,6 +9,7 @@ import nodemailer from "nodemailer";
 import session from 'express-session';
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from 'uuid';
+import {EmailClient} from "@azure/communication-email";
 
 // Enable .env support (for local development)
 dotenvConfig();
@@ -17,6 +18,131 @@ const __dirname = dirname(__filename);
 const app = express();
 app.use(express.json()); // For parsing application/json
 app.use(express.urlencoded({ extended: true })); // For parsing application/x-www-form-urlencoded
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
+app.use(express.static(path.join(__dirname, "public")));
+
+// Get environment variables
+const endpoint = process.env.COSMOSDB_ENDPOINT;
+const useManagedIdentity = process.env.USE_MI === "true";
+
+let cosmosClient;
+
+if (useManagedIdentity) {
+  // Use Managed Identity when deployed
+  const credential = new DefaultAzureCredential();
+  cosmosClient = new CosmosClient({ endpoint, aadCredentials: credential });
+} else {
+  // Local dev: use connection string (COSMOSDB_CONN)
+  const conn = process.env.COSMOSDB_CONN;
+  if (!conn) {
+    throw new Error("Missing COSMOSDB_CONN environment variable.");
+  }
+  cosmosClient = new CosmosClient(conn);
+}
+
+let emailClient;
+try {
+    const connectionString = process.env.ACS_CONNECTION_STRING;
+    if (!connectionString) {
+        throw new Error("ACS_CONNECTION_STRING is not defined in environment variables.");
+    }
+    emailClient = new EmailClient(connectionString);
+    console.log("Azure Communication Services Email Client initialized.");
+
+    // --- Updated check for v1.0.0 SDK ---
+    if (typeof emailClient.beginSend !== 'function') {
+         console.error("CRITICAL ERROR: emailClient.beginSend is not a function after initialization. Check SDK version and import.");
+         emailClient = null; // Mark as unusable
+         // Optionally, you might want to exit here if email is critical
+         // process.exit(1);
+    } else {
+        console.log("emailClient.beginSend method confirmed.");
+    }
+    // --- End of updated check ---
+
+} catch (err) {
+    console.error("Failed to initialize Azure Communication Services Email Client:", err.message);
+    emailClient = null; // Explicitly set to null on error
+    // Handle the case where emailClient is null wherever it's used
+    // process.exit(1); // Consider exiting if email is essential
+}
+
+const calcDatabase = cosmosClient.database("CalculatorConfigDB");
+const discountContainer = calcDatabase.container("Discounts");
+const volumePricingContainer = calcDatabase.container("VolumePricing");
+const ppusContainer = calcDatabase.container("PPUs");
+
+const customerDatabase = cosmosClient.database("CustomerInfo");
+const customerContainer = customerDatabase.container("CustomerInfo");
+
+const adminConfigContainer=customerDatabase.container("adminConfig");
+const formConfigContainer = customerDatabase.container("FormConfig");
+
+const siteStylesContainer = calcDatabase.container("SiteStyles");
+const promoCodesContainer = calcDatabase.container("PromoCodes");
+
+
+// Helper function to send emails (add this after the emailClient initialization)
+async function sendEmailWithACS(emailMessage) {
+    if (!emailClient) {
+        throw new Error("Email client is not initialized.");
+    }
+    
+    try {
+        // Use beginSend for v1.0.0
+        const poller = await emailClient.beginSend(emailMessage);
+        const result = await poller.pollUntilDone();
+        return result;
+    } catch (error) {
+        console.error("Email sending error:", error);
+        throw error;
+    }
+}
+
+async function getOrCreateDiscountRules() {
+  try {
+    // Attempt to read the existing document
+    const { resource: discountDoc } = await discountContainer
+      .item("discount-rules", "rules") // item(id, partitionKey)
+      .read();
+
+    if (discountDoc) {
+      // Document exists, return it
+      console.log("Found existing discount rules in database.");
+      return discountDoc;
+    }
+
+    // Document does not exist, create default
+    console.log("Discount rules not found. Creating default document.");
+    const defaultDiscountDoc = {
+      id: "discount-rules",
+      rules: "rules", // Partition key value
+      commitments: {
+        "1_year": 0,
+        "2_year": 0.05,
+        "3_year": 0.13,
+        "4_year": 0.2,
+        "5_year": 0.28
+      },
+      additionalDiscount: {
+        "Title": "Additional discount",
+        "additionalDiscountAmount": 0.2
+      }
+    };
+
+    const { resource: createdDoc } = await discountContainer.items.create(defaultDiscountDoc);
+    console.log("Default discount rules created successfully.");
+    return createdDoc;
+
+  } catch (err) {
+    console.error("Error in getOrCreateDiscountRules:", err.message);
+    // Depending on your preference, you might want to throw the error
+    // or return null/default values to let the route handle it gracefully.
+    // For now, re-throwing to let the route's catch block handle it.
+    throw err;
+  }
+}
 
 //salasanan setuppeja
 app.use(
@@ -48,47 +174,221 @@ app.get('/initAdmin', async (req, res) => {
   }
 });
 
+
+app.get("/adminEmails", /*requireOrderAdminOTP*/ async (req, res) => {
+    try {
+        const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+        const adminEmails = config?.adminEmails || [];
+
+        res.render("adminEmails", {
+            adminEmails: adminEmails,
+            message: req.query.message || null,
+            error: req.query.error || null
+        });
+    } catch (err) {
+        console.error("Error fetching admin emails:", err);
+        res.status(500).render("adminEmails", {
+            adminEmails: [],
+            message: null,
+            error: "Failed to load admin emails."
+        });
+    }
+});
+
+// POST /adminEmails/add - Add a new admin email
+app.post("/adminEmails/add", /*requireOrderAdminOTP*/ async (req, res) => { // Use requireOrderAdminOTP for security
+    const newEmail = req.body.newEmail?.trim();
+
+    if (!newEmail) {
+        return res.redirect("/adminEmails?error=" + encodeURIComponent("Email cannot be empty."));
+    }
+
+    // Basic email format validation (you can use a library like 'validator' for more robust checks)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+         return res.redirect("/adminEmails?error=" + encodeURIComponent("Invalid email format."));
+    }
+
+    try {
+        const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+
+        if (!config) {
+             return res.redirect("/adminEmails?error=" + encodeURIComponent("Admin configuration not found."));
+        }
+
+        // Check if email already exists
+        if (config.adminEmails && config.adminEmails.includes(newEmail)) {
+             return res.redirect("/adminEmails?message=" + encodeURIComponent("Email already exists."));
+        }
+
+        // Add the new email
+        if (!config.adminEmails) {
+            config.adminEmails = [];
+        }
+        config.adminEmails.push(newEmail);
+
+        // Save back to Cosmos DB
+        await adminConfigContainer.items.upsert(config);
+
+        res.redirect("/adminEmails?message=" + encodeURIComponent("Email added successfully."));
+    } catch (err) {
+        console.error("Error adding admin email:", err);
+        res.redirect("/adminEmails?error=" + encodeURIComponent("Failed to add email."));
+    }
+});
+
+// POST /adminEmails/update - Update an existing admin email
+// Note: This implementation updates the email based on its index in the array.
+app.post("/adminEmails/update", /*requireOrderAdminOTP*/ async (req, res) => {
+    const updatedEmails = req.body.emails; // This will be an object like { '0': 'newemail1@example.com', '1': 'newemail2@example.com' }
+
+    if (!updatedEmails || typeof updatedEmails !== 'object') {
+         return res.redirect("/adminEmails?error=" + encodeURIComponent("Invalid data received for update."));
+    }
+
+    try {
+        const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+
+        if (!config) {
+             return res.redirect("/adminEmails?error=" + encodeURIComponent("Admin configuration not found."));
+        }
+
+        // Get the current list of emails
+        let currentEmails = config.adminEmails || [];
+
+        // Update emails based on index
+        for (const indexStr in updatedEmails) {
+            const index = parseInt(indexStr, 10);
+            const newEmail = updatedEmails[indexStr]?.trim();
+
+            if (isNaN(index) || index < 0 || index >= currentEmails.length || !newEmail) {
+                console.warn(`Skipping invalid update for index ${indexStr} or email ${newEmail}`);
+                continue; // Skip invalid entries
+            }
+
+            // Basic email format validation (you can use a library like 'validator' for more robust checks)
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(newEmail)) {
+                 // If any email is invalid, stop and show error for that specific one if possible, or a general one.
+                 // For simplicity, we'll redirect with a general error. A more complex UI could highlight the field.
+                 return res.redirect("/adminEmails?error=" + encodeURIComponent(`Invalid email format for update: ${newEmail}`));
+            }
+
+            // Check if the new email already exists elsewhere in the list (excluding its own index)
+            if (currentEmails.some((email, i) => email === newEmail && i !== index)) {
+                 return res.redirect("/adminEmails?error=" + encodeURIComponent(`Email ${newEmail} already exists in the list.`));
+            }
+
+            currentEmails[index] = newEmail;
+        }
+
+        // Update the config object
+        config.adminEmails = currentEmails;
+
+        // Save back to Cosmos DB
+        await adminConfigContainer.items.upsert(config);
+
+        res.redirect("/adminEmails?message=" + encodeURIComponent("Email(s) updated successfully."));
+    } catch (err) {
+        console.error("Error updating admin emails:", err);
+        res.redirect("/adminEmails?error=" + encodeURIComponent("Failed to update email(s)."));
+    }
+});
+
+// POST /adminEmails/delete/:index - Delete an admin email by its index
+app.post("/adminEmails/delete/:index", /*requireOrderAdminOTP*/ async (req, res) => { 
+    const indexToDelete = parseInt(req.params.index, 10);
+
+    if (isNaN(indexToDelete) || indexToDelete < 0) {
+         return res.redirect("/adminEmails?error=" + encodeURIComponent("Invalid index for deletion."));
+    }
+
+
+    try {
+        const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+
+        if (!config) {
+             return res.redirect("/adminEmails?error=" + encodeURIComponent("Admin configuration not found."));
+        }
+
+        const currentEmails = config.adminEmails || [];
+
+        if (indexToDelete >= currentEmails.length) {
+             return res.redirect("/adminEmails?error=" + encodeURIComponent("Email index out of range."));
+        }
+
+        // Remove the email at the specified index
+        currentEmails.splice(indexToDelete, 1);
+
+        // Update the config object
+        config.adminEmails = currentEmails;
+
+        // Save back to Cosmos DB
+        await adminConfigContainer.items.upsert(config);
+
+        res.redirect("/adminEmails?message=" + encodeURIComponent("Email deleted successfully."));
+    } catch (err) {
+        console.error("Error deleting admin email:", err);
+        res.redirect("/adminEmails?error=" + encodeURIComponent("Failed to delete email."));
+    }
+});
+
+// --- End of new routes ---
+
+// ... (rest of your server.js code) ...
+
 // GET /verify-email – page where admin inputs email
 app.get('/verify-email', (req, res) => {
   res.render('verifyEmail', { error: null });
 });
 
 app.post('/send-otp', async (req, res) => {
-  const { email } = req.body;
+    const { email } = req.body;
+    try {
+        // --- ADD THIS CHECK ---
+        if (!emailClient) {
+            console.error("Email client is not initialized. Cannot send OTP.");
+            return res.render('verifyEmail', { error: "Email service is currently unavailable. Please try again later." });
+        }
+        // --- END ADD CHECK ---
 
-  try {
-    const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+        const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+        if (!config.adminEmails.includes(email)) {
+            return res.render('verifyEmail', { error: "Email not authorized." });
+        }
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        req.session.otp = otp;
+        req.session.otpEmail = email;
+        req.session.otpExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
 
-    if (!config.adminEmails.includes(email)) {
-      return res.render('verifyEmail', { error: "Email not authorized." });
+        const senderAddress = process.env.EMAIL_USER;
+        if (!senderAddress) {
+            throw new Error("EMAIL_USER (sender address) is not defined in environment variables for ACS.");
+        }
+
+        const emailMessage = {
+            senderAddress: senderAddress,
+            recipients: {
+                to: [{ address: email }],
+            },
+            content: {
+                subject: "Your One-Time Passcode (OTP)",
+                plainText: `Your OTP is: ${otp}`,
+            },
+        };
+
+        // --- Updated to use the helper function ---
+        const sendResult = await sendEmailWithACS(emailMessage);
+        console.log("OTP email sent successfully. Operation ID:", sendResult.id);
+        res.render('enterOtp', { email, error: null });
+    } catch (err) {
+        console.error("Error sending OTP:", err.message);
+        // Differentiate between ACS errors and others if needed
+        if (err.name === 'RestError') {
+            console.error("ACS Email Error Details:", err);
+        }
+        res.render('verifyEmail', { error: "Error sending OTP. Please try again." });
     }
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    req.session.otp = otp;
-    req.session.otpEmail = email;
-    req.session.otpExpires = Date.now() + 15 * 60 * 1000; //aika
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your One-Time Passcode (OTP)",
-      text: `Your OTP is: ${otp}`
-    });
-
-    res.render('enterOtp', { email, error: null });
-  } catch (err) {
-    console.error("Error sending OTP:", err.message);
-    res.render('verifyEmail', { error: "Error sending OTP. Please try again." });
-  }
 });
 
 //otp:n varmistus
@@ -155,82 +455,56 @@ app.post('/verifyResetCode', async (req, res) => {
 
 //salasanan vaihtamiseen
 app.post('/requestResetCode', async (req, res) => {
-  const { email } = req.body;
+    const { email } = req.body;
+    try {
+        // --- ADD THIS CHECK ---
+        if (!emailClient) {
+            console.error("Email client is not initialized. Cannot send reset code.");
+            return res.render('login', { error: "Email service is currently unavailable. Please try again later." });
+        }
+        // --- END ADD CHECK ---
 
-  try {
-    const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+        // ... rest of the /requestResetCode logic ...
+         const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+        if (!config.adminEmails.includes(email)) {
+            return res.render('login', { error: "Email not authorized." });
+        }
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        // Store code in session
+        req.session.resetCode = code;
+        req.session.resetEmail = email;
+        req.session.codeExpires = Date.now() + 15 * 60 * 1000; // 15 min expiry
 
-    if (!config.adminEmails.includes(email)) {
-      return res.render('login', { error: "Email not authorized." });
+        const senderAddress = process.env.EMAIL_USER;
+        if (!senderAddress) {
+            throw new Error("EMAIL_USER (sender address) is not defined in environment variables for ACS.");
+        }
+
+        const emailMessage = {
+            senderAddress: senderAddress,
+            recipients: {
+                to: [{ address: email }],
+            },
+            content: {
+                subject: "Your Admin Reset Code",
+                plainText: `Your code is: ${code}`,
+            },
+        };
+
+        // --- Updated to use the helper function ---
+        const sendResult = await sendEmailWithACS(emailMessage);
+        console.log("Reset code email sent successfully. Operation ID:", sendResult.id);
+        res.render('resetPassword', { email, error: null });
+
+    } catch (err) {
+        console.error("Reset code error:", err);
+         // Differentiate between ACS errors and others if needed
+        if (err.name === 'RestError') {
+            console.error("ACS Email Error Details:", err);
+        }
+        res.render('login', { error: "Failed to send reset code." });
     }
-
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Store code in session
-    req.session.resetCode = code;
-    req.session.resetEmail = email;
-    req.session.codeExpires = Date.now() + 15 * 60 * 1000; // 10 min expiry
-
-    // Send email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Your Admin Reset Code",
-      text: `Your code is: ${code}`
-    });
-
-    res.render('resetPassword', { email, error: null });
-  } catch (err) {
-    console.error("Reset code error:", err);
-    res.render('login', { error: "Failed to send reset code." });
-  }
 });
-
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
-app.use(express.static(path.join(__dirname, "public")));
-
-// Get environment variables
-const endpoint = process.env.COSMOSDB_ENDPOINT;
-const useManagedIdentity = process.env.USE_MI === "true";
-
-let cosmosClient;
-
-if (useManagedIdentity) {
-  // Use Managed Identity when deployed
-  const credential = new DefaultAzureCredential();
-  cosmosClient = new CosmosClient({ endpoint, aadCredentials: credential });
-} else {
-  // Local dev: use connection string (COSMOSDB_CONN)
-  const conn = process.env.COSMOSDB_CONN;
-  if (!conn) {
-    throw new Error("Missing COSMOSDB_CONN environment variable.");
-  }
-  cosmosClient = new CosmosClient(conn);
-}
-
-
-const calcDatabase = cosmosClient.database("CalculatorConfigDB");
-const discountContainer = calcDatabase.container("Discounts");
-const volumePricingContainer = calcDatabase.container("VolumePricing");
-const ppusContainer = calcDatabase.container("PPUs");
-
-const customerDatabase = cosmosClient.database("CustomerInfo");
-const customerContainer = customerDatabase.container("CustomerInfo");
-
-const adminConfigContainer=customerDatabase.container("adminConfig");
-const formConfigContainer = customerDatabase.container("FormConfig");
-
-const siteStylesContainer = calcDatabase.container("SiteStyles");
-const promoCodesContainer = calcDatabase.container("PromoCodes");
 
 // GET /initFormConfig - Initialize form configurations with defaults
 app.get("/initFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
@@ -576,42 +850,41 @@ app.get("/", (req, res) => {
 // GET /calculator
 app.get("/calculator", async (req, res) => {
   try {
-    const { resource: discountDoc } = await discountContainer
-      .item("discount-rules", "rules") // item(id, partitionKey)
-      .read();
+    // --- Use the helper function ---
+    const discountDoc = await getOrCreateDiscountRules();
+
     if (!discountDoc || !discountDoc.commitments) {
-      throw new Error("Discount document or commitments field not found");
+      // This check is mostly redundant now due to the helper's logic,
+      // but kept as a safeguard.
+      throw new Error("Failed to load or create discount document with commitments field.");
     }
+    // --- End of using helper function ---
+
     const commitmentOptions = Object.entries(discountDoc.commitments).map(([key, value]) => ({
       label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()), // "1_year" → "1 Year"
       value: value * 100,
       key: key
     }));
 
-    // --- Modified: Fetch the title for the additional discount ---
+    // --- Fetch the title for the additional discount ---
     let additionalDiscountTitle = "Eligible for discount?"; // Default title
     let additionalDiscountValue = 0; // Default value
-
     if (discountDoc.additionalDiscount) {
-        // If the new structure exists, use it
+        // If the structure exists, use it
         additionalDiscountTitle = discountDoc.additionalDiscount.Title || "Eligible for discount?";
         additionalDiscountValue = (discountDoc.additionalDiscount.additionalDiscountAmount || 0) * 100;
-    } else if (discountDoc.currentSubscriber !== undefined) {
-        // Fallback: If old structure exists, use it (though it won't be updated anymore)
-        additionalDiscountValue = (discountDoc.currentSubscriber || 0) * 100;
-        // Keep default title for migrated data unless you want to migrate the title too
     }
-    // --- End Modification ---
+    // --- End of fetching additional discount data ---
 
     res.render("calculator", {
       commitmentOptions,
-      // --- Pass the new data ---
       additionalDiscountTitle,
       additionalDiscountValue
-      // ---
     });
   } catch (err) {
     console.error("Failed to load discount options:", err.message);
+    // You might choose to render the calculator with default *UI* values here
+    // instead of sending a 500, depending on desired robustness.
     res.status(500).send("Failed to load discount options");
   }
 });
@@ -901,13 +1174,12 @@ app.post("/updateEmail", async (req, res) => {
 // GET /admin - Configuration editor
 app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
   try {
-    // Fetch all required data in parallel (removed currenciesContainer fetch)
+    // Fetch all required data in parallel
     const [
       discountRulesResponse,
       ppusResponse,
       volumePricingResponse,
       basePricesResponse
-      // currenciesResponse // Removed
     ] = await Promise.all([
       discountContainer.item("discount-rules", "rules").read(),
       ppusContainer.items.query("SELECT * FROM c ORDER BY c.date DESC").fetchAll(),
@@ -917,7 +1189,6 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       volumePricingContainer.items.query({
         query: "SELECT * FROM c WHERE c.id = 'BasePrices'"
       }).fetchAll()
-      // currenciesContainer.items.query("SELECT TOP 1 * FROM c ORDER BY c._ts DESC").fetchAll() // Removed
     ]);
 
     // --- Modified: Process discount rules to include title and additionalDiscount ---
@@ -926,7 +1197,6 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
         title: "Eligible for discount?", // Default title
         value: 0
     };
-
     if (discountRules.additionalDiscount) {
         // If the new structure exists, use it
         additionalDiscountData = {
@@ -941,7 +1211,6 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
         };
     }
     // --- End Modification ---
-
     if (discountRules.commitments) {
       discountRules.commitments = Object.entries(discountRules.commitments).map(([key, value]) => ({
         key,
@@ -950,7 +1219,7 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       }));
     }
 
-    // Process PPUs (remains the same)
+    // Process PPUs
     const ppus = ppusResponse.resources[0]?.ppu || {};
     for (const currency in ppus) {
       if (ppus[currency]) {
@@ -961,17 +1230,40 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
       }
     }
 
-    // Process base prices (remains the same)
-    const basePrices = basePricesResponse.resources[0] || {
-      id: "BasePrices",
-      subscriptions: {
-        GBP: 33,
-        EUR: 34,
-        USD: 35
-      }
-    };
+    // --- Modified: Process base prices and initialize if missing ---
+    let basePrices = basePricesResponse.resources[0]; // Get the first (should be only) base prices document
 
-    // Process volume pricing tiers (remains mostly the same, just removed logging)
+    // Check if base prices document exists
+    if (!basePrices) {
+      console.log("Base prices not found in database. Initializing with default values.");
+      // Define default base prices structure
+      const defaultBasePrices = {
+        id: "BasePrices",
+        userCount: null,
+        volumeDiscount: null,
+        subscriptions: {
+          GBP: 33,
+          EUR: 37.2, // Note: These are already specified values, not calculated
+          USD: 39.6  // parseFloat converts them, toFixed(2) ensures 2 decimals if needed for display [[1]]
+        }
+      };
+
+      try {
+        // Save the default base prices document to the database
+        const { resource: createdBasePrices } = await volumePricingContainer.items.create(defaultBasePrices);
+        console.log("Default base prices initialized successfully:", createdBasePrices.id);
+        basePrices = createdBasePrices; // Use the newly created document
+      } catch (createErr) {
+        console.error("Error creating default base prices document:", createErr);
+        // If creation fails, use the default object in memory for rendering
+        basePrices = defaultBasePrices;
+        // Optionally add a message to indicate the DB issue
+        // res.locals.basePriceMessage = "Failed to save default base prices to database.";
+      }
+    }
+    // --- End Modification ---
+
+    // Process volume pricing tiers
     const volumePricing = volumePricingResponse.resources.map(tier => {
       const processedTier = {
         id: tier.id,
@@ -979,34 +1271,20 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
         volumeDiscount: parseFloat(tier.volumeDiscount) || 0,
         subscriptions: tier.subscriptions || {}
       };
-      // Removed console.log for precision debugging
       return processedTier;
     });
-
-    // --- Removed all currencies/currenciesDoc/currenciesContainer logic ---
-    // const currenciesDoc = currenciesResponse.resources[0]; // Removed
-    // let currencies = { GBP: 1.0 }; // Removed
-    // if (currenciesDoc?.rates) { ... } // Removed
-    // const derivedRates = { ... }; // Removed
-    // --- End of Removed Logic ---
 
     res.render("admin", {
       discountRules: discountRules || {
         commitments: [],
-        // Removed currentSubscriber
       },
-      // --- Pass the new additionalDiscountData ---
       additionalDiscountData: additionalDiscountData,
-      // ---
       ppus: ppus || {},
       volumePricing: volumePricing || [],
-      basePrices: basePrices, // Pass base prices directly
-      // currencies: derivedRates, // Removed
-      // rawCurrencies: currencies, // Removed
+      basePrices: basePrices, // Pass the potentially initialized base prices
       message: req.query.message || null,
       baseCurrency: 'GBP',
-      activeStep: req.query.step ? parseInt(req.query.step) : 1,
-      message: req.query.message || null // Ensure message is only defined once
+      activeStep: req.query.step ? parseInt(req.query.step) : 1
     });
   } catch (err) {
     console.error("Error loading admin data:", err);
@@ -1014,26 +1292,23 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
     res.status(500).render("admin", {
       discountRules: {
         commitments: [],
-        // Removed currentSubscriber
       },
-      // --- Pass default additionalDiscountData on error ---
       additionalDiscountData: {
         title: "Eligible for discount?",
         value: 0
       },
-      // ---
       ppus: {},
       volumePricing: [],
       basePrices: {
         id: "BasePrices",
+        userCount: null,
+        volumeDiscount: null,
         subscriptions: {
           GBP: 33,
-          EUR: 34,
-          USD: 35
+          EUR: 37.2,
+          USD: 39.6
         }
       },
-      // currencies: { GBP: 1.0, USD: 1.3, EUR: 1.15 }, // Removed
-      // rawCurrencies: { GBP: 1.0, USD: 1.3, EUR: 1.15 }, // Removed
       message: "Error loading configuration data",
       baseCurrency: 'GBP'
     });
@@ -1433,26 +1708,23 @@ app.post("/submit-form", async (req, res) => {
     tenantURL,
     currency
   } = req.body;
-
   try {
     // Fetch system email
     const { resources: emailDoc } = await customerContainer.items.query({
       query: "SELECT * FROM c WHERE c.id = @id",
       parameters: [{ name: "@id", value: "sysemail" }]
     }).fetchAll();
-
     const sysemail = emailDoc[0]?.email || "";
-
+    
     // Fetch field configurations
     const { resources: fieldConfigs } = await formConfigContainer.items.query({
       query: "SELECT * FROM c"
     }).fetchAll();
-
     const fieldConfigMap = {};
     fieldConfigs.forEach(config => {
       fieldConfigMap[config.fieldName] = config;
     });
-
+    
     // Prepare DB item
     const item = {
       id: `${Date.now()}`,
@@ -1478,28 +1750,32 @@ app.post("/submit-form", async (req, res) => {
       sysemail,
       submittedAt: new Date().toISOString()
     };
-
+    
     // Save to Cosmos DB
     const { resource } = await customerContainer.items.create(item, {
       partitionKey: customerCompany
     });
-
     console.log("Inserted item into Cosmos DB:", resource);
 
-    // Send email
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
+    // --- Check if email client is available ---
+    if (!emailClient) {
+      console.error("Email client is not initialized. Cannot send submission confirmation.");
+      // Still render success page even if email fails
+      return res.render("thankyou", {
+        ordererName,
+        customerCompany,
+        ordererEmail
+      });
+    }
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: [sysemail, ordererEmail],
-      subject: `New Order Submission: ${customerCompany}`,
-      html: `
+    // --- Use Azure Communication Services Email ---
+    const senderAddress = process.env.EMAIL_USER; // Assuming EMAIL_USER holds the verified ACS sender address
+    if (!senderAddress) {
+        throw new Error("EMAIL_USER (sender address) is not defined in environment variables for ACS.");
+    }
+
+    // Prepare email content
+    const emailContent = `
         <h2>New Order Submitted</h2>
         <p><strong>${fieldConfigMap.ordererName?.title || 'Orderer'}:</strong> ${ordererName}</p>
         <p><strong>${fieldConfigMap.ordererEmail?.title || 'Orderer email'}:</strong> ${ordererEmail}</p>
@@ -1517,20 +1793,40 @@ app.post("/submit-form", async (req, res) => {
         <p><strong>${fieldConfigMap.tenantURL?.title || 'Tenant URL'}:</strong> ${tenantURL}</p>
         <hr />
         <p>This is an automated message.</p>
-      `
+      `;
+
+    const emailMessage = {
+      senderAddress: senderAddress,
+      recipients: {
+        to: [
+            { address: sysemail },     // System email
+            { address: ordererEmail }  // Orderer email
+        ],
+      },
+      content: {
+        subject: `New Order Submission: ${customerCompany}`,
+        html: emailContent, // Use HTML body
+        // plainText: emailContent.replace(/<[^>]*>?/gm, '') // Optional: Generate plain text version
+      },
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully");
+    // --- Updated to use the helper function ---
+    const sendResult = await sendEmailWithACS(emailMessage);
+    console.log("Submission confirmation email sent successfully. Operation ID:", sendResult.id);
+
+    // --- End of ACS Email Usage ---
 
     res.render("thankyou", {
       ordererName,
       customerCompany,
       ordererEmail
     });
-
   } catch (err) {
     console.error("Error saving to DB or sending email:", err.message);
+    // Differentiate between ACS errors and others if needed
+    if (err.name === 'RestError') {
+        console.error("ACS Email Error Details:", err);
+    }
     res.status(500).send("Failed to process your request.");
   }
 });
@@ -1556,180 +1852,300 @@ app.post("/deleteCustomer", async (req, res) => {
 
 // POST /calculate
 app.post("/calculate", async (req, res) => {
-  // Extract form data
-  const { amount, currency, commitmentDiscount, isCurrentSubscriber, promoCode } = req.body; // `isCurrentSubscriber` is still the checkbox name
-  const numSubscribers = Number(amount);
-  // Input validation
-  if (isNaN(numSubscribers) || numSubscribers <= 0) {
-      return res.status(400).send("Invalid number of subscribers.");
-  }
-  if (!currency) {
-      return res.status(400).send("Currency is required.");
-  }
-  try {
-    // --- Fetch Discount Rules ---
-    const { resource: discountDoc } = await discountContainer.item("discount-rules", "rules").read();
-    if (!discountDoc) {
-        return res.status(500).send("Discount rules not found.");
-    }
-    // --- Determine Discount Decimals ---
-    // --- Modified: Use the new structure for the additional discount ---
-    let subscriberDiscountDecimal = 0; // Default value
-    if (isCurrentSubscriber === "on") { // Checkbox is checked
-        if (discountDoc.additionalDiscount) {
-            // If new structure exists, use it
-            subscriberDiscountDecimal = discountDoc.additionalDiscount.additionalDiscountAmount || 0;
-        } else if (discountDoc.currentSubscriber !== undefined) {
-            // Fallback: If old structure exists, use it
-            subscriberDiscountDecimal = discountDoc.currentSubscriber || 0;
-        }
-    }
-    // --- End Modification ---
+    // Extract form data
+    const { amount, currency, commitmentDiscount, isCurrentSubscriber, promoCode } = req.body;
+    const numSubscribers = Number(amount);
 
-    // 2. Promo Code Discount (Validate internally)
-    let promoDiscountDecimal = 0;
-    let promoDescription = "";
-    if (promoCode && promoCode.trim()) {
-        try {
-            const trimmedCode = promoCode.trim();
-            const now = new Date().toISOString();
-            // Query for the code, ensuring it's active and within validity period
-            const { resources: promoCodes } = await promoCodesContainer.items
-              .query({
-                query: `SELECT * FROM c
+    // Input validation
+    if (isNaN(numSubscribers) || numSubscribers <= 0) {
+        return res.status(400).send("Invalid number of subscribers.");
+    }
+    if (!currency) {
+        return res.status(400).send("Currency is required.");
+    }
+
+    try {
+        // --- Fetch Discount Rules ---
+        const { resource: discountDoc } = await discountContainer.item("discount-rules", "rules").read();
+        if (!discountDoc) {
+            return res.status(500).send("Discount rules not found.");
+        }
+
+        // --- Determine Discount Decimals ---
+
+        // 1. Subscriber Discount (e.g., Partner/Current Customer)
+        // - Modified: Use the new structure for the additional discount -
+        let subscriberDiscountDecimal = 0; // Default value
+        if (isCurrentSubscriber === "on") { // Checkbox is checked
+            if (discountDoc.additionalDiscount) {
+                // If new structure exists, use it
+                subscriberDiscountDecimal = discountDoc.additionalDiscount.additionalDiscountAmount || 0;
+            } else if (discountDoc.currentSubscriber !== undefined) {
+                // Fallback: If old structure exists, use it
+                subscriberDiscountDecimal = discountDoc.currentSubscriber || 0;
+            }
+        }
+        // - End Modification -
+
+        // 2. Promo Code Discount (Validate internally)
+        let promoDiscountDecimal = 0;
+        let promoDescription = "";
+        if (promoCode && promoCode.trim()) {
+            try {
+                const trimmedCode = promoCode.trim();
+                const now = new Date().toISOString();
+
+                // Query for the code, ensuring it's active and within validity period
+                const querySpec = {
+                    query: `
+                        SELECT *
+                        FROM c
                         WHERE c.code = @code
                         AND c.isActive = true
-                        AND (NOT IS_DEFINED(c.validFrom) OR c.validFrom <= @now)
-                        AND (NOT IS_DEFINED(c.validTo) OR c.validTo >= @now)`,
-                parameters: [
-                  { name: "@code", value: trimmedCode },
-                  { name: "@now", value: now }
-                ]
-              })
-              .fetchAll();
-            const promoCodeDoc = promoCodes[0];
-            if (promoCodeDoc) {
-                promoDiscountDecimal = promoCodeDoc.discountPercentage / 100; // Convert to decimal
-                promoDescription = promoCodeDoc.description || "";
-            } else {
-                console.log("Invalid or expired promo code provided:", trimmedCode);
-                // Optionally add a message to be passed to the result page
-                // res.locals.promoMessage = "Invalid or expired promo code.";
+                        AND (NOT IS_DEFINED(c.startDate) OR c.startDate <= @now)
+                        AND (NOT IS_DEFINED(c.endDate) OR c.endDate >= @now)
+                    `,
+                    parameters: [
+                        { name: "@code", value: trimmedCode },
+                        { name: "@now", value: now }
+                    ]
+                };
+
+                const { resources } = await promoCodesContainer.items.query(querySpec).fetchAll();
+
+                if (resources.length > 0) {
+                    const promo = resources[0];
+                    promoDiscountDecimal = (parseFloat(promo.discountPercentage) || 0) / 100;
+                    promoDescription = promo.description || "";
+                    console.log("Valid promo code applied:", trimmedCode, "Discount:", promoDiscountDecimal);
+                } else {
+                    console.log("Invalid or expired promo code provided:", trimmedCode);
+                    // Optionally add a message to be passed to the result page
+                    // res.locals.promoMessage = "Invalid or expired promo code.";
+                }
+            } catch (err) {
+                console.error("Error validating promo code internally:", err);
+                // Handle error, maybe log, but don't crash calculation
             }
-        } catch (err) {
-             console.error("Error validating promo code internally:", err);
-             // Handle error, maybe log, but don't crash calculation
         }
-    }
-    // --- Fetch Pricing Data (PPU or Volume) ---
-    let ppuValueRaw = 0;
-    let usedVolumePricing = false;
-    let volumeBasePrice = 0;
-    if (numSubscribers >= 1000) {
-      const { resources: tiers } = await volumePricingContainer.items
-        .query({
-          query: "SELECT * FROM c WHERE c.userCount >= @numUsers ORDER BY c.userCount ASC",
-          parameters: [{ name: "@numUsers", value: numSubscribers }]
-        })
-        .fetchAll();
-      if (tiers.length > 0) {
-        volumeBasePrice = tiers[0].subscriptions[currency] || 0;
-        usedVolumePricing = true;
-      }
-    }
-    if (!usedVolumePricing) {
-      const { resources: ppuDocs } = await ppusContainer.items
-        .query({ query: "SELECT * FROM c ORDER BY c.date DESC" })
-        .fetchAll();
-      const latestPPU = ppuDocs[0];
-      ppuValueRaw = latestPPU?.ppu?.[currency]?.standard || 0;
-    }
-    const ppuValue = Number(ppuValueRaw);
-    if (isNaN(ppuValue)) {
-        console.warn(`ppuValueRaw '${ppuValueRaw}' could not be converted to a valid number for currency ${currency}. Defaulting to 0.`);
-    }
-    // --- Fetch Commitment Options ---
-    const commitmentOptions = Object.entries(discountDoc.commitments || {}).map(([key, value]) => ({
-      key,
-      label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
-      value: parseFloat(value),
-    }));
-    // --- CALCULATE PRICES WITH MULTIPLICATIVE DISCOUNTS ---
-    const allPrices = commitmentOptions.map(option => {
-        const commitmentDiscountDecimal = option.value; // e.g., 0.15 for 15%
-        // --- KEY CHANGE: Apply discounts multiplicatively ---
-        // Formula: Final Multiplier = (1 - D_subscriber) * (1 - D_promo) * (1 - D_commitment)
-        const combinedDiscountMultiplier =
-            (1 - subscriberDiscountDecimal) * // Use the potentially migrated or new value
-            (1 - promoDiscountDecimal) *
-            (1 - commitmentDiscountDecimal);
-        let annualPrice, monthlyPrice, pricePerUser;
-        if (usedVolumePricing) {
-          // - Volume Pricing Calculation -
-          // Volume pricing gives an annual base price
-          annualPrice = volumeBasePrice * combinedDiscountMultiplier;
-          // Convert annual to effective monthly
-          monthlyPrice = annualPrice / 12;
-          // Calculate price per user per month
-          pricePerUser = monthlyPrice / numSubscribers; // This is now MONTHLY per user
-        } else {
-          // - PPU Pricing Calculation -
-          const baseMonthlyPrice = numSubscribers * ppuValue;
-          monthlyPrice = baseMonthlyPrice * combinedDiscountMultiplier;
-          annualPrice = monthlyPrice * 12;
-          // Calculate price per user per month
-          pricePerUser = monthlyPrice / numSubscribers; // Already correct
+
+        // --- Fetch Pricing Data (PPU or Volume) ---
+        let ppuValueRaw = 0;
+        let usedVolumePricing = false;
+        let volumeBasePrice = 0;
+
+        if (numSubscribers >= 1000) {
+            // --- Volume Pricing Calculation ---
+            try {
+                const { resources: tiers } = await volumePricingContainer.items.query({
+                    query: "SELECT * FROM c WHERE c.userCount != null ORDER BY c.userCount ASC"
+                }).fetchAll();
+
+                // Find the appropriate tier
+                let selectedTier = tiers[tiers.length - 1]; // Default to last (highest) tier
+                for (const tier of tiers) {
+                    if (numSubscribers <= tier.userCount) {
+                        selectedTier = tier;
+                        break;
+                    }
+                }
+
+                if (selectedTier && selectedTier.subscriptions && selectedTier.subscriptions[currency] !== undefined) {
+                     volumeBasePrice = selectedTier.subscriptions[currency];
+                     usedVolumePricing = true;
+                } else {
+                     console.warn(`Volume price for ${numSubscribers} users and currency ${currency} not found. Defaulting to PPU logic.`);
+                     // Fall back to PPU logic if volume price is missing
+                }
+            } catch (volumeErr) {
+                console.error("Error fetching volume pricing ", volumeErr);
+                // Fall back to PPU logic on error
+            }
+            // --- End Volume Pricing Calculation ---
         }
-        // Determine if this option is the one selected in the form submission
-        // commitmentDiscount from req.body is expected to be a percentage string like "15.0"
-        const isSelected = option.value === (parseFloat(commitmentDiscount) / 100);
-        return {
-            ...option, // key, label, value
-            monthlyPrice: Number(monthlyPrice.toFixed(2)),
-            annualPrice: Number(annualPrice.toFixed(2)),
-            pricePerUser: Number(pricePerUser.toFixed(4)), // Keep higher precision for PPU display
-            isSelected: isSelected
-        };
-    });
-    // Find the option that was selected, or default to the first one
-    const selectedOption = allPrices.find(p => p.isSelected) || allPrices[0];
-    // --- END CALCULATE PRICES ---
 
-    // --- Modified: Pass the title to the result view ---
-    let additionalDiscountTitle = "Eligible for discount?"; // Default title
-    if (discountDoc.additionalDiscount) {
-        additionalDiscountTitle = discountDoc.additionalDiscount.Title || "Eligible for discount?";
-    } else if (discountDoc.currentSubscriber !== undefined) {
-        // Keep default title for migrated data unless you want to migrate the title too
+        // --- PPU Logic (if not using Volume or Volume failed) ---
+        if (!usedVolumePricing) {
+            let ppuDoc = null;
+            try {
+                // 1. Attempt to fetch the latest PPU data
+                const { resources: ppuDocs } = await ppusContainer.items
+                    .query("SELECT * FROM c ORDER BY c.date DESC")
+                    .fetchAll();
+
+                if (ppuDocs && ppuDocs.length > 0) {
+                    // a. Use the most recent PPU document found
+                    ppuDoc = ppuDocs[0];
+                    console.log("PPU data found:", ppuDoc.id);
+                } else {
+                    // b. No PPU data found, create default
+                    console.log("No PPU data found. Creating default PPU document...");
+                    const defaultPPUData = {
+                        // Generate a unique ID based on date and timestamp
+                        id: `ppu-${new Date().toISOString().split('T')[0]}-${Date.now()}`,
+                        date: new Date().toISOString(),
+                        ppu: {
+                            GBP: {
+                                standard: 2.75
+                            },
+                            EUR: {
+                                standard: 3.10
+                            },
+                            USD: {
+                                standard: 3.30
+                            }
+                            // Add more currencies and values as needed for your defaults
+                        }
+                        // Note: _rid, _self, _etag, _attachments, _ts are generated by Cosmos DB
+                        // Partition key (e.g., if path is '/PPUkey') should match the logic.
+                        // If the partition key is simply the 'id' or derived from it, this might be sufficient.
+                        // Adjust PPUkey assignment if your container requires a specific partition key value.
+                        // Example if PPUkey is a separate field and the partition key path is '/PPUkey':
+                        // PPUkey: `ppu-${new Date().toISOString().split('T')[0]}-${Date.now()}` // Or a fixed value if that's the design
+                    };
+
+                    // --- Important: Ensure Partition Key is Correct ---
+                    // If your PPUs container has a partition key path like '/PPUkey',
+                    // and it's not simply derived from 'id', you might need to set it explicitly.
+                    // Cosmos DB SDK often infers it, but being explicit is safer.
+                    // Assuming partition key path is '/PPUkey' and it should match the 'id' or part of it:
+                    defaultPPUData.PPUkey = defaultPPUData.id; // Adjust this line based on your actual partition key logic
+
+                    try {
+                        // Create the default PPU document in the database
+                        // Pass the partition key explicitly if required by your SDK version or setup
+                        const { resource: createdDoc } = await ppusContainer.items.create(defaultPPUData, { partitionKey: defaultPPUData.PPUkey });
+                        console.log("Default PPU document created successfully:", createdDoc.id);
+                        ppuDoc = createdDoc; // Use the newly created document
+                    } catch (createErr) {
+                        console.error("Error creating default PPU document:", createErr);
+                        // Depending on requirements, you might want to throw an error or proceed with ppuValueRaw = 0
+                        // For now, we'll log the error and continue with default ppuValueRaw (0)
+                        // Optionally, you could set a flag or message to indicate the default creation issue
+                         return res.status(500).send("Failed to initialize pricing data.");
+                    }
+                }
+            } catch (fetchErr) {
+                console.error("Error fetching PPU ", fetchErr);
+                // Handle error fetching PPU data, potentially defaulting or showing an error
+                // For now, proceed with ppuDoc = null, leading to ppuValueRaw = 0
+                 return res.status(500).send("Error retrieving pricing data.");
+            }
+
+            // 2. Determine ppuValueRaw using the fetched or created document
+            if (ppuDoc?.ppu?.[currency]?.standard !== undefined) {
+                ppuValueRaw = ppuDoc.ppu[currency].standard;
+            } else {
+                // This case handles:
+                // - No PPU doc found or created
+                // - PPU doc found/created but missing the specific currency or 'standard' tier
+                console.warn(`PPU value for currency '${currency}' (standard tier) not found in document (or no document). Defaulting to 0.`);
+                // ppuValueRaw remains 0
+                // Consider if you want to use a hardcoded default here if the specific currency isn't found
+                // even if a PPU doc exists. Or, you might want to show an error if *no* PPU doc could be sourced.
+                 // Optionally return an error if critical pricing is missing
+                 // return res.status(500).send(`Pricing data for currency ${currency} is unavailable.`);
+            }
+        }
+        // --- End PPU Logic ---
+
+        const ppuValue = Number(ppuValueRaw);
+        if (isNaN(ppuValue)) {
+            console.warn(`ppuValueRaw '${ppuValueRaw}' could not be converted to a valid number for currency ${currency}. Defaulting to 0.`);
+            // ppuValue will be 0 due to Number conversion of non-numeric ppuValueRaw or 0 itself
+        }
+
+        // --- CALCULATE PRICES WITH MULTIPLICATIVE DISCOUNTS ---
+        // Define available commitment options based on discount rules
+        const commitmentOptions = Object.entries(discountDoc.commitments || {}).map(([key, value]) => ({
+             label: key.replace('_', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
+             value: value, // Value is already decimal from DB
+             key: key
+        }));
+
+        const allPrices = commitmentOptions.map(option => {
+            const commitmentDiscountDecimal = option.value; // e.g., 0.15 for 15%
+
+            // - KEY CHANGE: Apply discounts multiplicatively -
+            // Formula: Final Multiplier = (1 - D_subscriber) * (1 - D_promo) * (1 - D_commitment)
+            const combinedDiscountMultiplier =
+                (1 - subscriberDiscountDecimal) * // Use the potentially migrated or new value
+                (1 - promoDiscountDecimal) *
+                (1 - commitmentDiscountDecimal);
+
+            let annualPrice, monthlyPrice, pricePerUser;
+
+            if (usedVolumePricing) {
+                // - Volume Pricing Calculation -
+                pricePerUser = volumeBasePrice * combinedDiscountMultiplier;
+                annualPrice = pricePerUser * numSubscribers; // Assuming volume base price is annual
+                monthlyPrice = annualPrice / 12;
+                // - End Volume Pricing Calculation -
+            } else {
+                // - PPU Pricing Calculation -
+                pricePerUser = ppuValue * combinedDiscountMultiplier;
+                annualPrice = pricePerUser * numSubscribers * 12;
+                monthlyPrice = pricePerUser * numSubscribers;
+                // - End PPU Pricing Calculation -
+            }
+
+            // Format prices to 2 decimal places for display
+            annualPrice = parseFloat(annualPrice.toFixed(2));
+            monthlyPrice = parseFloat(monthlyPrice.toFixed(2));
+            pricePerUser = parseFloat(pricePerUser.toFixed(2));
+
+            return {
+                ...option,
+                annualPrice,
+                monthlyPrice,
+                pricePerUser,
+                isSelected: option.key === commitmentDiscount // Mark selected option
+            };
+        });
+
+        const selectedOption = allPrices.find(p => p.isSelected) || allPrices[0];
+
+        // - Modified: Pass the title to the result view -
+        let additionalDiscountTitle = "Eligible for discount?"; // Default title
+        if (discountDoc.additionalDiscount) {
+            additionalDiscountTitle = discountDoc.additionalDiscount.Title || "Eligible for discount?";
+        } else if (discountDoc.currentSubscriber !== undefined) {
+            // Keep default title for migrated data unless you want to migrate the title too
+        }
+        // - End Modification -
+
+        // Render the result page, passing the calculated data
+        res.render("result", {
+            amount: numSubscribers,
+            currency: currency,
+            allPrices: allPrices, // <-- This line passes the allPrices array
+            selectedOption: selectedOption, // <-- And this passes the selected option
+
+            // - Modified: Pass the discount title and value for display -
+            // subscriberDiscount was calculated as a decimal, convert for display
+            subscriberDiscount: Number((subscriberDiscountDecimal * 100).toFixed(2)),
+            subscriberDiscountTitle: additionalDiscountTitle, // Pass the title
+            // -
+            // promoDiscount was calculated as a decimal, convert for display
+            promoDiscount: Number((promoDiscountDecimal * 100).toFixed(2)),
+            promoDescription: promoDescription,
+            pricePerUser: selectedOption.pricePerUser,
+            monthlyPrice: selectedOption.monthlyPrice,
+            annualPrice: selectedOption.annualPrice,
+            commitmentLabel: selectedOption.label,
+            QuotePrice: { // Pass the full price object for saving
+                pricePerUser: selectedOption.pricePerUser,
+                monthlyPrice: selectedOption.monthlyPrice,
+                annualPrice: selectedOption.annualPrice
+            }
+        });
+
+    } catch (err) {
+        console.error("Error during calculation:", err);
+        res.status(500).send("An error occurred during the calculation. Please try again.");
     }
-    // --- End Modification ---
-
-    // Render the result page, passing the calculated data
-    // Make sure QuoteCustomerEmail is NOT included here unless it's specifically needed and defined
-    res.render("result", {
-      amount: numSubscribers,
-      currency: currency,
-      // --- Modified: Pass the discount title and value for display ---
-      // subscriberDiscount was calculated as a decimal, convert for display
-      subscriberDiscount: Number((subscriberDiscountDecimal * 100).toFixed(2)),
-      subscriberDiscountTitle: additionalDiscountTitle, // Pass the title
-      // ---
-      // promoDiscount was calculated as a decimal, convert for display
-      promoDiscount: Number((promoDiscountDecimal * 100).toFixed(2)),
-      promoDescription: promoDescription || "", // Pass promo description if available
-      usedVolumePricing: usedVolumePricing,
-      ppuValue: usedVolumePricing ? 0 : (isNaN(ppuValue) ? 0 : ppuValue),
-      allPrices: allPrices,
-      // Pass the data as JSON string for client-side JavaScript interaction
-      allPricesForJS: JSON.stringify(allPrices),
-      selectedOption: selectedOption
-      // QuoteCustomerEmail: ... // DO NOT PASS THIS unless it's defined in this context (e.g., from a previous step or form)
-    });
-  } catch (err) {
-    console.error("Calculation error:", err.message);
-    res.status(500).send("Failed to calculate subscription price.");
-  }
 });
+
 
 
 
@@ -1738,12 +2154,11 @@ app.post("/calculate", async (req, res) => {
 app.post("/save-quote", async (req, res) => {
     // Note: QuotePrice is now an object, not a string
     const { QuoteCustomerName, QuotePrice, QuoteUserAmount, QuoteCurrency, QuoteCustomerEmail } = req.body;
-    
     try {
         // 1. Basic validation
         if (!QuoteCustomerName || !QuotePrice || !QuoteUserAmount || !QuoteCurrency || !QuoteCustomerEmail) {
-            return res.status(400).json({ 
-                message: "Missing required fields (Name, Price, Amount, Currency, Email)." 
+            return res.status(400).json({
+                message: "Missing required fields (Name, Price, Amount, Currency, Email)."
             });
         }
         
@@ -1762,23 +2177,27 @@ app.post("/save-quote", async (req, res) => {
             QuoteCurrency: QuoteCurrency,
             QuoteCustomerEmail: QuoteCustomerEmail // Add the email to the saved data
         };
-
+        
         // 5. Save the quote to Cosmos DB
         const { resource: savedQuote } = await quotesContainer.items.upsert(quoteToSave);
         console.log(`Quote saved successfully with ID: ${savedQuote.id}`);
-        
-        // 6. Send email using Nodemailer
-        // - FIX: Define the transporter inside the route -
-        const transporter = nodemailer.createTransport({
-            service: 'gmail', // Or your email service
-            auth: {
-                user: process.env.EMAIL_USER, // Make sure these are set in your .env
-                pass: process.env.EMAIL_PASS
-            }
-        });
-        console.log("Transporter object created:", transporter);
-        // - END FIX -
-        
+
+        // --- Check if email client is available ---
+        if (!emailClient) {
+            console.error("Email client is not initialized. Cannot send quote email.");
+            // Still return success for quote saving even if email fails
+            return res.status(201).json({
+                message: "Quote saved successfully, but email could not be sent.",
+                quoteId: savedQuote.id
+            });
+        }
+
+        // --- Use Azure Communication Services Email ---
+        const senderAddress = process.env.EMAIL_USER; // Assuming EMAIL_USER holds the verified ACS sender address
+        if (!senderAddress) {
+            throw new Error("EMAIL_USER (sender address) is not defined in environment variables for ACS.");
+        }
+
         // Create plan description for email
         let planDescriptionHTML = "<p><strong>Available Plans:</strong></p><ul>";
         if (QuotePrice && typeof QuotePrice === 'object') {
@@ -1791,14 +2210,9 @@ app.post("/save-quote", async (req, res) => {
         }
         planDescriptionHTML += "</ul>";
 
-        const mailOptions = {
-            from: process.env.EMAIL_USER, // Sender address (your system email)
-            to: QuoteCustomerEmail, // Recipient address (the one provided by the user)
-            subject: `Your Subscription Quote #${quoteId}`, // Subject line
-            html: `
+        const emailContent = `
                 <h2>Subscription Quote</h2>
                 <p>Thank you for your interest in our services.</p>
-                
                 <p><strong>Quote ID:</strong> ${quoteId}</p>
                 <p><strong>Customer Name:</strong> ${QuoteCustomerName}</p>
                 ${planDescriptionHTML}
@@ -1806,23 +2220,40 @@ app.post("/save-quote", async (req, res) => {
                 <p><strong>Currency:</strong> ${QuoteCurrency}</p>
                 <hr />
                 <p>This is an automated message containing your saved quote.</p>
-            `
+            `;
+
+        const emailMessage = {
+          senderAddress: senderAddress,
+          recipients: {
+            to: [{ address: QuoteCustomerEmail }], // Send to the customer's email
+          },
+          content: {
+            subject: `Your Subscription Quote #${quoteId}`,
+            html: emailContent, // Use HTML body
+            // plainText: emailContent.replace(/<[^>]*>?/gm, '') // Optional: Generate plain text version
+          },
         };
 
-        await transporter.sendMail(mailOptions);
-        console.log(`Quote email sent successfully to ${QuoteCustomerEmail}`);
-        
+        // --- Updated to use the helper function ---
+        const sendResult = await sendEmailWithACS(emailMessage);
+        console.log(`Quote email sent successfully to ${QuoteCustomerEmail}. Operation ID:`, sendResult.id);
+
+        // --- End of ACS Email Usage ---
+
         // 7. Send success response with the ID
-        res.status(201).json({ 
-            message: "Quote saved and email sent successfully.", 
-            quoteId: savedQuote.id 
+        res.status(201).json({
+            message: "Quote saved and email sent successfully.",
+            quoteId: savedQuote.id
         });
     } catch (err) {
         console.error("Error saving quote or sending email:", err.message);
+        // Differentiate between ACS errors and others if needed
+        if (err.name === 'RestError') {
+            console.error("ACS Email Error Details:", err);
+        }
         // Send error response
-        // Differentiate between server errors and email errors if needed, but a 500 is generally okay
-        res.status(500).json({ 
-            message: "Failed to save quote or send email. Please try again later." 
+        res.status(500).json({
+            message: "Failed to save quote or send email. Please try again later."
         });
     }
 });

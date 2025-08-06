@@ -19,6 +19,7 @@
   "homepage": "https://github.com/bbbonkk/SubsCalcRepo#readme",
   "description": "",
   "dependencies": {
+    "@azure/communication-email": "^1.0.0",
     "@azure/cosmos": "^4.4.1",
     "@azure/identity": "^4.10.0",
     "@sendgrid/mail": "^8.1.5",
