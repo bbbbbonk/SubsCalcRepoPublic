@@ -175,7 +175,7 @@ app.get('/initAdmin', async (req, res) => {
 });
 
 
-app.get("/adminEmails", /*requireOrderAdminOTP*/ async (req, res) => {
+app.get("/adminEmails", requireOrderAdminOTP, async (req, res) => {
     try {
         const { resource: config } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
         const adminEmails = config?.adminEmails || [];
@@ -196,7 +196,7 @@ app.get("/adminEmails", /*requireOrderAdminOTP*/ async (req, res) => {
 });
 
 // POST /adminEmails/add - Add a new admin email
-app.post("/adminEmails/add", /*requireOrderAdminOTP*/ async (req, res) => { // Use requireOrderAdminOTP for security
+app.post("/adminEmails/add", requireOrderAdminOTP, async (req, res) => {
     const newEmail = req.body.newEmail?.trim();
 
     if (!newEmail) {
@@ -239,7 +239,7 @@ app.post("/adminEmails/add", /*requireOrderAdminOTP*/ async (req, res) => { // U
 
 // POST /adminEmails/update - Update an existing admin email
 // Note: This implementation updates the email based on its index in the array.
-app.post("/adminEmails/update", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/adminEmails/update", requireOrderAdminOTP, async (req, res) => {
     const updatedEmails = req.body.emails; // This will be an object like { '0': 'newemail1@example.com', '1': 'newemail2@example.com' }
 
     if (!updatedEmails || typeof updatedEmails !== 'object') {
@@ -296,7 +296,7 @@ app.post("/adminEmails/update", /*requireOrderAdminOTP*/ async (req, res) => {
 });
 
 // POST /adminEmails/delete/:index - Delete an admin email by its index
-app.post("/adminEmails/delete/:index", /*requireOrderAdminOTP*/ async (req, res) => { 
+app.post("/adminEmails/delete/:index", requireOrderAdminOTP, async (req, res) => { 
     const indexToDelete = parseInt(req.params.index, 10);
 
     if (isNaN(indexToDelete) || indexToDelete < 0) {
@@ -507,7 +507,7 @@ app.post('/requestResetCode', async (req, res) => {
 });
 
 // GET /initFormConfig - Initialize form configurations with defaults
-app.get("/initFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
+app.get("/initFormConfig", requireOrderAdminOTP, async (req, res) => {
   try {
     const defaultConfigs = [
       // Form title
@@ -706,7 +706,7 @@ app.get("/initFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
 });
 
 // GET /formConfig - Retrieve all form field configurations
-app.get("/formConfig", /*requireOrderAdminOTP*/ async (req, res) => {
+app.get("/formConfig", requireOrderAdminOTP, async (req, res) => {
   try {
     const { resources: configs } = await formConfigContainer.items.query({
       query: "SELECT * FROM c"
@@ -732,7 +732,7 @@ app.get("/formConfig", /*requireOrderAdminOTP*/ async (req, res) => {
 });
 
 // POST /updateFormConfig - Update form field configurations
-app.post("/updateFormConfig", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/updateFormConfig", requireOrderAdminOTP, async (req, res) => {
   try {
     const updates = [];
     
@@ -889,9 +889,6 @@ app.get("/calculator", async (req, res) => {
   }
 });
 
-
-
-
 //authentikointia loginille
 async function requireAuth(req, res, next) {
   if (req.session && req.session.authenticated) {
@@ -1017,7 +1014,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-function requireOrderAdminOTP (req, res, next) {                                                              //OTA POIS KOMMENTTI LOPETTAESSA
+function requireOrderAdminOTP (req, res, next) {
   if (req.session && req.session.orderAdminVerified) {
     return next();
   }
@@ -1026,7 +1023,7 @@ function requireOrderAdminOTP (req, res, next) {                                
 
 /// GET /orderAdmin
 // GET /orderAdmin
-app.get("/orderAdmin", /*requireOrderAdminOTP*/ async (req, res) => {
+app.get("/orderAdmin", requireOrderAdminOTP, async (req, res) => {
   try {
     const searchTerm = req.query.search || "";
     const page = parseInt(req.query.page) || 1;
@@ -1126,7 +1123,7 @@ app.get("/orderAdmin", /*requireOrderAdminOTP*/ async (req, res) => {
 });
 
 //for updating tooltips to cosmos db
-app.post("/updateTooltips", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/updateTooltips", requireOrderAdminOTP, async (req, res) => {
   try {
     const container = customerDatabase.container("Tooltips");
     const updateOps = [
@@ -1172,7 +1169,7 @@ app.post("/updateEmail", async (req, res) => {
 });
 
 // GET /admin - Configuration editor
-app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
+app.get("/admin", requireOrderAdminOTP, async (req, res) => {
   try {
     // Fetch all required data in parallel
     const [
@@ -1317,7 +1314,7 @@ app.get("/admin", /*requireOrderAdminOTP*/ async (req, res) => {
 
 
 // POST /admin/updateVolumePricing - Ensure precision when handling discount
-app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/updateVolumePricing", requireOrderAdminOTP, async (req, res) => {
   try {
     const { tiers = {} } = req.body;
     const updateOps = [];
@@ -1396,7 +1393,7 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
 });
 
 // POST /admin/update - save updated variables
-app.post("/admin/updateDiscounts", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/updateDiscounts", requireOrderAdminOTP, async (req, res) => {
   try {
     const { commitments, additionalDiscountTitle, additionalDiscountValue } = req.body; // Changed variable names
 
@@ -1432,7 +1429,7 @@ app.post("/admin/updateDiscounts", /*requireOrderAdminOTP*/ async (req, res) => 
 });
 
 // POST /admin/updatePPUs - WITH ERROR HANDLING
-app.post("/admin/updatePPUs", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/updatePPUs", requireOrderAdminOTP, async (req, res) => {
   try {
     const ppus = req.body.ppus;
     const baseId = `ppu-${new Date().toISOString().split('T')[0]}`;
@@ -1461,7 +1458,7 @@ app.post("/admin/updatePPUs", /*requireOrderAdminOTP*/ async (req, res) => {
   }
 });
 
-app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/updateVolumePricing", requireOrderAdminOTP, async (req, res) => {
   try {
     const { tiers = {} } = req.body;
     const updateOps = [];
@@ -1537,7 +1534,7 @@ app.post("/admin/updateVolumePricing", /*requireOrderAdminOTP*/ async (req, res)
   }
 });
 
-app.post("/admin/updateBasePrices", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/updateBasePrices", requireOrderAdminOTP, async (req, res) => {
   try {
     const { monthlySubscriptions = {} } = req.body;
     const processedAnnualSubscriptions = {};
@@ -1593,7 +1590,7 @@ async function recalculateVolumePrices(basePrices) {
     throw err;
   }
 }
-app.post("/admin/addVolumeTier", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/addVolumeTier", requireOrderAdminOTP, async (req, res) => {
   try {
     const { userCount, volumeDiscount } = req.body;
 
@@ -2258,7 +2255,7 @@ app.post("/save-quote", async (req, res) => {
     }
 });
 
-app.post("/admin/createPromoCode", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/admin/createPromoCode", requireOrderAdminOTP, async (req, res) => {
   try {
     const { code, discountPercentage, description, validFrom, validTo } = req.body;
 
@@ -2299,7 +2296,7 @@ app.post("/admin/createPromoCode", /*requireOrderAdminOTP*/ async (req, res) => 
   }
 });
 
-app.get("/admin/promo-codes", /*requireOrderAdminOTP*/ async (req, res) => {
+app.get("/admin/promo-codes", requireOrderAdminOTP, async (req, res) => {
   try {
     const { resources: promoCodes } = await promoCodesContainer.items.query({
       query: "SELECT * FROM c ORDER BY c.createdAt DESC"
@@ -2335,7 +2332,7 @@ app.get("/admin/promo-codes", /*requireOrderAdminOTP*/ async (req, res) => {
   }
 });
 
-app.put("/admin/promo-codes/:id", /*requireOrderAdminOTP*/ async (req, res) => {
+app.put("/admin/promo-codes/:id", requireOrderAdminOTP, async (req, res) => {
   try {
     const promoCodeId = req.params.id;
     const updateData = req.body; // e.g., { isActive: false, description: "Updated desc" }
@@ -2362,7 +2359,7 @@ app.put("/admin/promo-codes/:id", /*requireOrderAdminOTP*/ async (req, res) => {
   }
 });
 
-app.delete("/admin/promo-codes/:id", /*requireOrderAdminOTP*/ async (req, res) => {
+app.delete("/admin/promo-codes/:id", requireOrderAdminOTP, async (req, res) => {
   try {
     const promoCodeId = req.params.id;
     await promoCodesContainer.item(promoCodeId, promoCodeId).delete();
@@ -2421,7 +2418,7 @@ app.post("/api/validate-promo-code", async (req, res) => {
 
 
 
-app.get("/stylesAdmin", /*requireOrderAdminOTP*/ async (req, res) => { // Use requireOrderAdminOTP for security
+app.get("/stylesAdmin", requireOrderAdminOTP, async (req, res) => {
     try {
         // Fetch current styles from Cosmos DB
         const { resource: styles } = await siteStylesContainer.item("site-styles", "config").read(); // Use a fixed id/partition key
@@ -2440,7 +2437,7 @@ app.get("/stylesAdmin", /*requireOrderAdminOTP*/ async (req, res) => { // Use re
     }
 });
 
-app.post("/stylesAdmin", /*requireOrderAdminOTP*/ async (req, res) => {
+app.post("/stylesAdmin", requireOrderAdminOTP, async (req, res) => {
     try {
         // Ensure the partition key property name matches your container definition
         // If partition key path is '/config', use 'config' here:
