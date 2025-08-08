@@ -338,8 +338,94 @@ app.post("/adminEmails/delete/:index", requireOrderAdminOTP, async (req, res) =>
 // ... (rest of your server.js code) ...
 
 // GET /verify-email – page where admin inputs email
-app.get('/verify-email', (req, res) => {
-  res.render('verifyEmail', { error: null });
+app.get('/verify-email', async (req, res) => {
+  try {
+    const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL;
+    const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+
+    // Check if DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD are configured in .env
+    if (!defaultAdminEmail) {
+      console.error("DEFAULT_ADMIN_EMAIL is not set in environment variables.");
+      return res.status(500).render('verifyEmail', { error: "Server configuration error: Default admin email not set." });
+    }
+    if (!defaultAdminPassword) {
+        console.error("DEFAULT_ADMIN_PASSWORD is not set in environment variables.");
+        return res.status(500).render('verifyEmail', { error: "Server configuration error: Default admin password not set." });
+    }
+
+    let adminConfigExists = false;
+    let adminConfigResource = null;
+    let needsUpdate = false;
+
+    try {
+      // Attempt to read the existing adminCredentials document
+      const { resource } = await adminConfigContainer.item("adminCredentials", "adminCredentials").read();
+      adminConfigResource = resource;
+      adminConfigExists = !!resource;
+    } catch (readError) {
+      // If the document is not found (404), `resource` will be undefined.
+      if (readError.code !== 404) {
+        console.error("Error checking for adminCredentials document:", readError.message);
+        // Log the error but continue, assuming the doc doesn't exist for now.
+        // You might want to show an error page depending on your strategy.
+      }
+      adminConfigExists = false;
+    }
+
+    // If document doesn't exist, prepare to create it
+    if (!adminConfigExists) {
+      console.log("adminCredentials document not found. Creating with DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD.");
+      needsUpdate = true;
+      // Initialize with default email and a placeholder for the hashed password
+      adminConfigResource = {
+        id: "adminCredentials",
+        adminEmails: [],
+        adminPassword: "" // Will be updated below
+      };
+    }
+
+    // Ensure DEFAULT_ADMIN_EMAIL is in the adminEmails array
+    if (!adminConfigResource.adminEmails) {
+        adminConfigResource.adminEmails = [];
+    }
+
+    if (!adminConfigResource.adminEmails.includes(defaultAdminEmail)) {
+        console.log(`Adding DEFAULT_ADMIN_EMAIL (${defaultAdminEmail}) to adminEmails.`);
+        adminConfigResource.adminEmails.push(defaultAdminEmail);
+        needsUpdate = true;
+    } else {
+        console.log(`DEFAULT_ADMIN_EMAIL (${defaultAdminEmail}) already present in adminEmails.`);
+    }
+
+    // Ensure a password is set. If not, or if it's empty, use DEFAULT_ADMIN_PASSWORD
+    // Note: An empty string is falsy, so this covers both missing and empty password.
+    if (!adminConfigResource.adminPassword) {
+        console.log("Admin password not found or empty. Setting password from DEFAULT_ADMIN_PASSWORD.");
+        adminConfigResource.adminPassword = await bcrypt.hash(defaultAdminPassword, 10);
+        needsUpdate = true;
+    } else {
+        console.log("Admin password already set.");
+    }
+
+    // If any changes were needed, upsert the document
+    if (needsUpdate) {
+        console.log("Updating adminCredentials document in the database.");
+        await adminConfigContainer.items.upsert(adminConfigResource);
+        console.log("adminCredentials document updated successfully.");
+    } else {
+        console.log("adminCredentials document is up-to-date.");
+    }
+
+
+    // Render the verifyEmail page as normal
+    res.render('verifyEmail', { error: null });
+
+  } catch (error) {
+    console.error("Error in /verify-email pre-checks:", error);
+    // Depending on your error handling strategy, you might render an error page
+    // or just proceed to the normal page. Here, we'll show an error.
+    res.status(500).render('verifyEmail', { error: "An error occurred while initializing admin settings." });
+  }
 });
 
 app.post('/send-otp', async (req, res) => {
@@ -1385,7 +1471,7 @@ app.post("/admin/updateVolumePricing", requireOrderAdminOTP, async (req, res) =>
       updateOps.push(volumePricingContainer.items.upsert(update));
     }
     await Promise.all(updateOps);
-    res.redirect("/admin?step=4&message=Volume pricing updated successfully");
+    res.redirect("/admin?step=5&message=Volume pricing updated successfully");
   } catch (err) {
     console.error("Error updating volume pricing:", err);
     res.redirect("/admin?message=Error updating volume pricing: " + encodeURIComponent(err.message));

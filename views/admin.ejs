@@ -311,11 +311,77 @@
       </div>
       <div class="step-navigation">
         <button class="prev-step" data-prev="2">Previous: Base Prices</button>
-        <button class="next-step" data-next="4">Next: Edit Discounts</button>
+        <button class="next-step" data-next="4">Next: Pricing Overview</button>
       </div>
     </div>
-    <!-- Step 4: Discounts -->
+
+    <!-- Step 4: Volume Pricing Overview -->
     <div id="step4" class="step-container">
+      <h2>Volume Pricing Overview</h2>
+      <p>This table shows the configured volume pricing tiers and calculated prices for each currency.</p>
+
+      <% if (volumePricing && volumePricing.length > 0) { %>
+        <!-- Extract unique currencies from the first tier's subscriptions -->
+        <% const currencies = Object.keys((volumePricing.find(t => t.subscriptions) || {}).subscriptions || {}).sort(); %>
+
+        <div class="table-container"> <!-- Add scroll for wide tables -->
+        <table class="volume-pricing-table">
+          <thead>
+            <tr>
+              <th>User Count</th>
+              <th>Volume Discount (%)</th>
+              <% currencies.forEach(currency => { %>
+                <th><%= currency %> Total Price</th>
+              <% }); %>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Include Base Prices row -->
+            <tr>
+                <td>Base Prices</td>
+                <td>N/A</td>
+                <% currencies.forEach(currency => { %>
+                   <td style="text-align: right;"> <!-- Align right -->
+                     <% if (basePrices.subscriptions && basePrices.subscriptions[currency] !== undefined) { %>
+                       <%= Math.round(parseFloat(basePrices.subscriptions[currency])) %> <!-- Round value -->
+                     <% } else { %>
+                       N/A
+                     <% } %>
+                   </td>
+                 <% }); %>
+            </tr>
+            <!-- Sort and display volume pricing tiers -->
+            <% volumePricing.sort((a, b) => (a.userCount || 0) - (b.userCount || 0)).forEach(tier => { %>
+              <tr>
+                <td><%= tier.userCount !== null ? tier.userCount.toLocaleString() : 'Base Prices' %></td>
+                <td><%= tier.userCount !== null ? (tier.volumeDiscount * 100).toFixed(4) : 'N/A' %></td>
+                 <% currencies.forEach(currency => { %>
+                   <td style="text-align: right;"> <!-- Align right -->
+                     <% if (tier.subscriptions && tier.subscriptions[currency] !== undefined) { %>
+                       <%= Math.round(parseFloat(tier.subscriptions[currency])) %> <!-- Round value -->
+                     <% } else { %>
+                       N/A
+                     <% } %>
+                   </td>
+                 <% }); %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        </div>
+      <% } else { %>
+        <p>No volume pricing data available.</p>
+      <% } %>
+
+      <div class="step-navigation">
+        <button class="prev-step" data-prev="3">Previous: Volume Pricing</button>
+        <button class="next-step" data-next="5">Next: Edit Discounts</button>
+         <!-- <button type="button" onclick="window.location.reload();">Refresh Data</button> -->
+      </div>
+    </div>
+
+        <!-- Step 5: Discounts -->
+    <div id="step5" class="step-container">
       <h2>Discount Settings</h2>
         <form id="discountForm" action="/admin/updateDiscounts" method="POST">
 
@@ -383,11 +449,11 @@
           </div>
           <div class="form-group">
             <label for="promo-valid-from">Valid From:</label>
-            <input type="datetime-local" id="promo-valid-from" name="validFrom" />
+            <input type="datetime-local" id="promo-valid-from" name="validFrom" required/>
           </div>
           <div class="form-group">
-            <label for="promo-valid-to">Valid To (Optional):</label>
-            <input type="datetime-local" id="promo-valid-to" name="validTo" />
+            <label for="promo-valid-to">Valid To:</label>
+            <input type="datetime-local" id="promo-valid-to" name="validTo" required/>
           </div>
           <button type="submit" id="create-promo-button">Create Promo Code</button>
         </form>
@@ -400,75 +466,10 @@
       </div>
       <!-- --- END NEW PROMO CODES SECTION --- -->
 
-      <div class="step-navigation">
-        <button class="prev-step" data-prev="3">Previous: Volume Pricing</button>
-        <button class="next-step" data-next="5">Next: Pricing Overview</button>
-      </div>
-    </div>
+      <div class="step-navigation">        
+        <button class="prev-step" data-prev="4">Previous: Pricing Overview</button>
+        <button type="button" id="save-all-button">Save All Changes</button>
 
-    <!-- Step 5: Volume Pricing Overview -->
-    <div id="step5" class="step-container">
-      <h2>Volume Pricing Overview</h2>
-      <p>This table shows the configured volume pricing tiers and calculated prices for each currency.</p>
-
-      <% if (volumePricing && volumePricing.length > 0) { %>
-        <!-- Extract unique currencies from the first tier's subscriptions -->
-        <% const currencies = Object.keys((volumePricing.find(t => t.subscriptions) || {}).subscriptions || {}).sort(); %>
-
-        <div class="table-container"> <!-- Add scroll for wide tables -->
-        <table class="volume-pricing-table">
-          <thead>
-            <tr>
-              <th>User Count</th>
-              <th>Volume Discount (%)</th>
-              <% currencies.forEach(currency => { %>
-                <th><%= currency %> Total Price</th>
-              <% }); %>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- Include Base Prices row -->
-            <tr>
-                <td>Base Prices</td>
-                <td>N/A</td>
-                <% currencies.forEach(currency => { %>
-                   <td style="text-align: right;"> <!-- Align right -->
-                     <% if (basePrices.subscriptions && basePrices.subscriptions[currency] !== undefined) { %>
-                       <%= Math.round(parseFloat(basePrices.subscriptions[currency])) %> <!-- Round value -->
-                     <% } else { %>
-                       N/A
-                     <% } %>
-                   </td>
-                 <% }); %>
-            </tr>
-            <!-- Sort and display volume pricing tiers -->
-            <% volumePricing.sort((a, b) => (a.userCount || 0) - (b.userCount || 0)).forEach(tier => { %>
-              <tr>
-                <td><%= tier.userCount !== null ? tier.userCount.toLocaleString() : 'Base Prices' %></td>
-                <td><%= tier.userCount !== null ? (tier.volumeDiscount * 100).toFixed(4) : 'N/A' %></td>
-                 <% currencies.forEach(currency => { %>
-                   <td style="text-align: right;"> <!-- Align right -->
-                     <% if (tier.subscriptions && tier.subscriptions[currency] !== undefined) { %>
-                       <%= Math.round(parseFloat(tier.subscriptions[currency])) %> <!-- Round value -->
-                     <% } else { %>
-                       N/A
-                     <% } %>
-                   </td>
-                 <% }); %>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-        </div>
-      <% } else { %>
-        <p>No volume pricing data available.</p>
-      <% } %>
-
-      <div class="step-navigation">
-        <button class="prev-step" data-prev="4">Previous: Discounts</button>
-        <button type="button" id="save-all-button">Save All Changes</button> <!-- Add Save All Button -->
-         <!-- Optional: Add a Refresh button if needed -->
-         <!-- <button type="button" onclick="window.location.reload();">Refresh Data</button> -->
       </div>
     </div>
 
@@ -483,8 +484,8 @@
     1: "Step 1: Edit PPUs",
     2: "Step 2: Edit Base Prices",
     3: "Step 3: Edit Volume Pricing",
-    4: "Step 4: Edit Discounts",
-    5: "Step 5: Volume Pricing Overview"
+    4: "Step 4: Volume Pricing Overview",
+    5: "Step 5: Edit Discounts"
   };
   // Initialize with the active step from server
   const activeStep = <%= activeStep || 1 %>;
